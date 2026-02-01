@@ -27,7 +27,7 @@ cd stt-api
 docker-compose up --build
 ```
 
-4. Откройте в браузере: http://localhost:8000
+4. Откройте в браузере: http://localhost:4787
 
 ## HuggingFace Token
 
@@ -60,7 +60,7 @@ docker-compose down -v
 ```
 
 ### Сервисы:
-- **api** (порт 8000) - FastAPI приложение
+- **api** (порт 4787) - FastAPI приложение
 
 ### Health Checks:
 - API: `GET /health`
@@ -160,16 +160,16 @@ Web интерфейс
 
 ```bash
 # Загрузить файл и начать транскрибацию
-curl -X POST http://localhost:8000/transcribe \
+curl -X POST http://localhost:4787/transcribe \
   -H "X-API-Key: YOUR_API_KEY" \
   -F "file=@audio.mp3" \
   -F "enable_diarization=true"
 
 # Проверить статус (когда completed вернёт text)
-curl http://localhost:8000/status/{task_id}
+curl http://localhost:4787/status/{task_id}
 
 # Скачать результат
-curl http://localhost:8000/result/{task_id} -o result.txt
+curl http://localhost:4787/result/{task_id} -o result.txt
 ```
 
 ## Структура проекта

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     
     # App
     app_host: str = "0.0.0.0"
-    app_port: int = 8000
+    app_port: int = 4787
     max_file_size: int = 524288000  # 500MB
     upload_chunk_size: int = 10485760  # 10MB
     api_key: str = ""

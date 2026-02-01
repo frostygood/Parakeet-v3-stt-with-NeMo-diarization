@@ -4,7 +4,7 @@ services:
     container_name: stt-api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "4787:4787"
     environment:
       - HF_HOME=/app/models
       - HF_HUB_CACHE=/app/models
@@ -12,7 +12,7 @@ services:
       - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
       - API_KEY=${API_KEY}
       - APP_HOST=0.0.0.0
-      - APP_PORT=8000
+      - APP_PORT=4787
     volumes:
       - ./uploads:/app/uploads
       - ./transcriptions:/app/transcriptions
@@ -20,7 +20,7 @@ services:
     networks:
       - stt-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8000/health"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4787/health"]
       interval: 30s
       timeout: 10s
       retries: 3
