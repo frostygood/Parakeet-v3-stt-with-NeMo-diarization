@@ -25,10 +25,11 @@ class TranscriptionResult(BaseModel):
     raw_text: str
     words: List[Dict[str, Any]]
     srt: str
-    speaker_srt: str
+    speaker_srt: List[Dict[str, Any]]
     srt_segments: List[Dict[str, Any]]
     speaker_segments: List[Dict[str, Any]]
     diarization_segments: Optional[List[Dict[str, Any]]] = None
+    speaker_text: str
     language: str
     duration: float
     processing_time: float

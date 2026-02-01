@@ -376,6 +376,27 @@
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
+
+        function formatTimestamp(seconds) {
+            const totalMillis = Math.max(0, Math.floor(seconds * 1000));
+            const hours = Math.floor(totalMillis / 3600000);
+            const minutes = Math.floor((totalMillis % 3600000) / 60000);
+            const secs = Math.floor((totalMillis % 60000) / 1000);
+            const millis = totalMillis % 1000;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
+        }
+
+        function formatSrt(segments) {
+            if (!Array.isArray(segments)) return '';
+            return segments
+                .map((seg, index) => {
+                    const start = formatTimestamp(seg.start || 0);
+                    const end = formatTimestamp(seg.end || 0);
+                    const text = seg.text || '';
+                    return `${index + 1}\n${start} --> ${end}\n${text}`;
+                })
+                .join('\n\n');
+        }
         
         transcribeBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
@@ -399,8 +420,10 @@
                     },
                     body: formData
                 });
-                
                 const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Ошибка запуска транскрибации');
+                }
                 taskId = data.task_id;
                 
                 updateProgress(20, 'Файл загружен, начинаем транскрибацию...');
@@ -422,6 +445,9 @@
                         }
                     });
                     const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Ошибка статуса');
+                    }
                     
                     if (data.status === 'pending') {
                         updateProgress(25, 'Ожидание в очереди...');
@@ -432,7 +458,8 @@
                         updateProgress(100, 'Готово!');
                         const rawText = data.raw_text || data.text || '';
                         const speakerText = data.speaker_text || '';
-                        const speakerSrt = data.speaker_srt || '';
+                        const speakerSrtSegments = data.speaker_srt || [];
+                        const speakerSrt = formatSrt(speakerSrtSegments);
                         const srtText = data.srt || '';
                         let combined = rawText;
                         if (speakerText) {

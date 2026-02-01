@@ -1,13 +1,13 @@
 import os
-import json
 import time
 from pathlib import Path
 from typing import List, Dict, Any
 
-from app.config import settings
+from app.db import save_transcription
 from app.logging_config import get_logger
 from app.task_store import task_store
-from app.utils import get_audio_output_path
+from app.config import settings
+from app.utils import get_audio_output_path, cleanup_old_uploads
 from app.constants import (
     PROGRESS_INIT,
     PROGRESS_AUDIO_EXTRACTED,
@@ -180,10 +180,6 @@ def process_transcription(
                 progress=PROGRESS_SAVING,
                 step="Saving results",
             )
-            
-            transcription_dir = Path(settings.transcription_dir)
-            transcription_dir.mkdir(parents=True, exist_ok=True)
-            result_file = transcription_dir / f"{task_id}.json"
 
             raw_text = transcription_result.get('raw_text') or transcription_result.get('text', '')
             words = transcription_result.get('words', [])
@@ -191,28 +187,24 @@ def process_transcription(
             srt_text = generate_srt(srt_segments)
 
             speaker_lines = []
-            speaker_srt = ""
+            speaker_srt = []
             for seg in speaker_segments:
                 line = f"[{seg['start']:.2f} - {seg['end']:.2f}]"
                 if 'speaker' in seg:
                     line += f" {seg['speaker']}:"
                 line += f" {seg['text']}"
                 speaker_lines.append(line)
+
+                label = seg.get('text', '')
+                if seg.get('speaker'):
+                    label = f"{seg['speaker']}: {label}"
+                speaker_srt.append({
+                    'start': seg['start'],
+                    'end': seg['end'],
+                    'text': label,
+                })
+
             speaker_text = "\n".join(speaker_lines)
-
-            if speaker_segments:
-                speaker_srt_segments = []
-                for seg in speaker_segments:
-                    label = seg.get('text', '')
-                    if seg.get('speaker'):
-                        label = f"{seg['speaker']}: {label}"
-                    speaker_srt_segments.append({
-                        'start': seg['start'],
-                        'end': seg['end'],
-                        'text': label,
-                    })
-                speaker_srt = generate_srt(speaker_srt_segments)
-
             processing_time = time.time() - start_time
 
             result_data = {
@@ -221,7 +213,6 @@ def process_transcription(
                 'words': words,
                 'srt': srt_text,
                 'speaker_srt': speaker_srt,
-                'srt_segments': srt_segments,
                 'speaker_segments': speaker_segments,
                 'diarization_segments': diarization_segments,
                 'speaker_text': speaker_text,
@@ -230,33 +221,18 @@ def process_transcription(
                 'processing_time': processing_time,
             }
 
-            with open(result_file, 'w', encoding='utf-8') as f:
-                json.dump(result_data, f, ensure_ascii=False, indent=2)
-
-            logger.info(f"Results saved to: {result_file}")
+            save_transcription(result_data)
 
             audio_processor.cleanup_files(*temp_files, file_path)
 
+            removed = cleanup_old_uploads(settings.upload_dir)
+            if removed:
+                logger.info("Removed %s old uploads", removed)
+
             logger.info(f"Task {task_id} completed in {processing_time:.2f}s")
 
-            result_payload = {
-                'task_id': task_id,
-                'status': 'completed',
-                'result_file': str(result_file),
-                'raw_text': raw_text,
-                'words': words,
-                'srt': srt_text,
-                'speaker_srt': speaker_srt,
-                'srt_segments': srt_segments,
-                'speaker_segments': speaker_segments,
-                'diarization_segments': diarization_segments,
-                'speaker_text': speaker_text,
-                'language': transcription_result.get('language', language),
-                'duration': transcription_result.get('duration', 0.0),
-                'processing_time': processing_time,
-            }
-            task_store.set_result(task_id, result_payload)
-            return result_payload
+            task_store.set_result(task_id, {'task_id': task_id})
+            return result_data
             
         except Exception as exc:
             logger.error(f"Task {task_id} failed: {exc}", exc_info=True)

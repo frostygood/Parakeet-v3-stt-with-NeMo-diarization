@@ -1,8 +1,9 @@
 """Utility functions"""
 
 import re
+import time
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 
 from fastapi import HTTPException
 
@@ -116,7 +117,7 @@ def parse_duration_str(duration_str: str) -> float:
     return float(duration_str)
 
 
-def safe_float(value: any, default: float = 0.0) -> float:
+def safe_float(value: Any, default: float = 0.0) -> float:
     """
     Safely convert value to float.
     
@@ -131,3 +132,96 @@ def safe_float(value: any, default: float = 0.0) -> float:
         return float(value)
     except (ValueError, TypeError):
         return default
+
+
+def parse_srt(srt_text: str) -> List[Dict[str, Any]]:
+    """
+    Parse SRT text into segments.
+
+    Args:
+        srt_text: SRT content
+
+    Returns:
+        List of segments with start, end, and text
+    """
+    if not srt_text:
+        return []
+
+    lines = [line.rstrip("\n") for line in srt_text.splitlines()]
+    segments: List[Dict[str, Any]] = []
+    idx = 0
+
+    while idx < len(lines):
+        line = lines[idx].strip()
+        if not line:
+            idx += 1
+            continue
+        if line.isdigit():
+            idx += 1
+            if idx >= len(lines):
+                break
+            line = lines[idx].strip()
+        if "-->" not in line:
+            idx += 1
+            continue
+
+        start_str, end_str = [part.strip() for part in line.split("-->")]
+        start = _parse_srt_timestamp(start_str)
+        end = _parse_srt_timestamp(end_str)
+        idx += 1
+
+        text_lines = []
+        while idx < len(lines) and lines[idx].strip():
+            text_lines.append(lines[idx])
+            idx += 1
+
+        text = "\n".join(text_lines).strip()
+        segments.append({
+            'start': start,
+            'end': end,
+            'text': text
+        })
+
+    return segments
+
+
+def cleanup_old_uploads(upload_dir: str, max_age_hours: int = 24) -> int:
+    """
+    Remove files older than max_age_hours in upload_dir.
+
+    Args:
+        upload_dir: Directory with uploads
+        max_age_hours: Age threshold in hours
+
+    Returns:
+        Number of deleted files
+    """
+    now = time.time()
+    cutoff = max_age_hours * 3600
+    deleted = 0
+
+    for path in Path(upload_dir).glob("*"):
+        if not path.is_file():
+            continue
+        try:
+            age = now - path.stat().st_mtime
+        except OSError:
+            continue
+        if age > cutoff:
+            try:
+                path.unlink()
+                deleted += 1
+            except OSError:
+                continue
+
+    return deleted
+
+
+def _parse_srt_timestamp(value: str) -> float:
+    try:
+        time_part, millis_part = value.split(",")
+        hours, minutes, seconds = [int(part) for part in time_part.split(":")]
+        millis = int(millis_part)
+        return hours * 3600 + minutes * 60 + seconds + millis / 1000
+    except (ValueError, AttributeError):
+        return 0.0

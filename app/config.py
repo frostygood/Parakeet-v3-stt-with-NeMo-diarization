@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     max_file_size: int = 524288000  # 500MB
     upload_chunk_size: int = 10485760  # 10MB
     api_key: str = ""
+    database_url: str = ""
     
     # Paths
     upload_dir: str = "./uploads"

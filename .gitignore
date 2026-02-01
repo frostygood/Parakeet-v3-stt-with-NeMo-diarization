@@ -57,3 +57,7 @@ models/*
 # Celery
 celerybeat-schedule
 celerybeat.pid
+
+
+test-files
+

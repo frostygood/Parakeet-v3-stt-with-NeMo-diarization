@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p uploads transcriptions models
+RUN mkdir -p uploads models
 
 # Set environment variables
 ENV PYTHONPATH=/app

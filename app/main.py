@@ -3,15 +3,16 @@ import uuid
 import aiofiles
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.logging_config import setup_logging, get_logger
-from app.utils import sanitize_filename, validate_file_size, validate_file_type
-from app.constants import MEDIA_TYPES
+from app.db import fetch_transcription
+from app.task_queue import TaskQueue
+from app.utils import sanitize_filename, validate_file_size, validate_file_type, parse_srt
 from app.models import (
     TranscriptionResponse, 
     TranscriptionStatus,
@@ -28,6 +29,30 @@ app = FastAPI(
     description="Speech-to-Text API with Parakeet v3 and Speaker Diarization",
     version="1.0.0"
 )
+
+QUEUE_MAX_SIZE = 100
+QUEUE_WORKERS = 3
+
+
+def build_transcription_payload(row: dict) -> dict:
+    raw_text = row.get("raw_text") or ""
+    srt_text = row.get("srt") or ""
+
+    return {
+        'task_id': str(row.get('task_id') or ''),
+        'raw_text': raw_text,
+        'text': raw_text,
+        'words': row.get('words') or [],
+        'srt': srt_text,
+        'speaker_srt': row.get('speaker_srt') or [],
+        'srt_segments': parse_srt(srt_text),
+        'speaker_segments': row.get('speaker_segments') or [],
+        'diarization_segments': row.get('diarization_segments') or [],
+        'speaker_text': row.get('speaker_text') or "",
+        'processing_time': row.get('processing_time'),
+        'duration': row.get('duration'),
+        'language': row.get('language')
+    }
 
 
 @app.middleware("http")
@@ -54,6 +79,20 @@ async def api_key_middleware(request: Request, call_next):
         return JSONResponse(status_code=401, content={"detail": "Invalid API key"})
 
     return await call_next(request)
+
+
+@app.on_event("startup")
+async def startup_tasks():
+    task_queue = TaskQueue(maxsize=QUEUE_MAX_SIZE, workers=QUEUE_WORKERS)
+    await task_queue.start()
+    app.state.task_queue = task_queue
+
+
+@app.on_event("shutdown")
+async def shutdown_tasks():
+    task_queue = getattr(app.state, "task_queue", None)
+    if task_queue:
+        await task_queue.stop()
 
 # CORS - TODO: Configure allowed origins from settings
 app.add_middleware(
@@ -96,7 +135,7 @@ async def health_check():
 
 @app.post("/transcribe", response_model=TranscriptionResponse)
 async def transcribe(
-    background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(...),
     enable_diarization: bool = Form(False),
 ):
@@ -115,6 +154,12 @@ async def transcribe(
         HTTPException: If file validation fails
     """
     try:
+        task_queue = getattr(request.app.state, "task_queue", None)
+        if not task_queue:
+            raise HTTPException(status_code=500, detail="Task queue not initialized")
+        if task_queue.full():
+            raise HTTPException(status_code=429, detail="Queue is full")
+
         # Read file size
         file_size = 0
         content = await file.read()
@@ -141,15 +186,20 @@ async def transcribe(
         
         logger.info(f"Starting transcription task {task_id} for file {safe_filename}")
         task_store.create(task_id)
-        
-        # Start background task
-        background_tasks.add_task(
+        task_store.update(task_id, status="pending", progress=0, step="Queued")
+
+        enqueued = task_queue.enqueue(
             process_transcription,
             file_path=str(file_path),
             task_id=task_id,
             language="auto",
             enable_diarization=enable_diarization,
         )
+        if not enqueued:
+            if file_path.exists():
+                file_path.unlink()
+            task_store.set_error(task_id, "Queue is full")
+            raise HTTPException(status_code=429, detail="Queue is full")
         
         return TranscriptionResponse(
             task_id=task_id,
@@ -181,48 +231,39 @@ async def get_status(task_id: str):
     """
     try:
         task_state = task_store.get(task_id)
-        if not task_state:
+        if task_state:
+            if task_state.status == TranscriptionStatus.PENDING.value:
+                return {
+                    'task_id': task_id,
+                    'status': 'pending',
+                    'progress': task_state.progress,
+                    'step': task_state.step
+                }
+            if task_state.status == TranscriptionStatus.PROCESSING.value:
+                return {
+                    'task_id': task_id,
+                    'status': 'processing',
+                    'progress': task_state.progress,
+                    'step': task_state.step
+                }
+            if task_state.status == TranscriptionStatus.FAILED.value:
+                return {
+                    'task_id': task_id,
+                    'status': 'failed',
+                    'error': task_state.error or 'Unknown error'
+                }
+
+        row = fetch_transcription(task_id)
+        if not row:
+            if task_state:
+                raise HTTPException(status_code=404, detail="Result not found")
             raise HTTPException(status_code=404, detail="Task not found")
-        
-        if task_state.status == TranscriptionStatus.PENDING.value:
-            return {
-                'task_id': task_id,
-                'status': 'pending',
-                'progress': task_state.progress
-            }
-        elif task_state.status == TranscriptionStatus.PROCESSING.value:
-            return {
-                'task_id': task_id,
-                'status': 'processing',
-                'progress': task_state.progress,
-                'step': task_state.step
-            }
-        elif task_state.status == TranscriptionStatus.COMPLETED.value:
-            result = task_state.result or {}
-            response = {
-                'task_id': task_id,
-                'status': 'completed',
-                'result_url': f"/result/{task_id}",
-                'raw_text': result.get('raw_text'),
-                'text': result.get('raw_text'),
-                'words': result.get('words'),
-                'srt': result.get('srt'),
-                'speaker_srt': result.get('speaker_srt'),
-                'srt_segments': result.get('srt_segments'),
-                'speaker_segments': result.get('speaker_segments'),
-                'diarization_segments': result.get('diarization_segments'),
-                'speaker_text': result.get('speaker_text'),
-                'processing_time': result.get('processing_time'),
-                'duration': result.get('duration'),
-                'language': result.get('language')
-            }
-            return response
-        else:
-            return {
-                'task_id': task_id,
-                'status': 'failed',
-                'error': task_state.error or 'Unknown error'
-            }
+
+        response = build_transcription_payload(row)
+        response['task_id'] = task_id
+        response['status'] = 'completed'
+        response['result_url'] = f"/result/{task_id}"
+        return response
             
     except Exception as e:
         logger.error(f"Error getting status for task {task_id}: {e}", exc_info=True)
@@ -245,24 +286,21 @@ async def get_result(task_id: str):
     """
     try:
         task_state = task_store.get(task_id)
-        if not task_state:
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        if task_state.status == TranscriptionStatus.FAILED.value:
+        if task_state and task_state.status == TranscriptionStatus.FAILED.value:
             raise HTTPException(status_code=500, detail=task_state.error or "Task failed")
         
-        if task_state.status != TranscriptionStatus.COMPLETED.value:
-            raise HTTPException(status_code=404, detail="Result not ready or task failed")
-        
-        result = task_state.result or {}
-        result_file = result.get('result_file')
-        if not result_file or not os.path.exists(result_file):
-            raise HTTPException(status_code=404, detail="Result file not found")
+        row = fetch_transcription(task_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Result not found")
 
-        return FileResponse(
-            result_file,
-            media_type=MEDIA_TYPES.get('json', 'application/json'),
-            filename=f"transcription_{task_id}.json"
+        payload = build_transcription_payload(row)
+        payload['task_id'] = task_id
+
+        return JSONResponse(
+            content=payload,
+            headers={
+                "Content-Disposition": f"attachment; filename=transcription_{task_id}.json"
+            }
         )
         
     except HTTPException:

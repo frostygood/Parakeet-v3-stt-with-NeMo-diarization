@@ -17,9 +17,9 @@ git clone <repo-url>
 cd stt-api
 ```
 
-2. Создайте .env файл с токеном и API ключом:
+2. Создайте .env файл с токеном, API ключом и доступом к базе:
 ```bash
-# Отредактируйте .env и добавьте ваш HuggingFace токен и API_KEY
+# Отредактируйте .env и добавьте ваш HuggingFace токен, API_KEY и DATABASE_URL
 ```
 
 3. Запустите сервис:
@@ -37,6 +37,14 @@ docker-compose up --build
 2. Получите токен: https://huggingface.co/settings/tokens
 3. Для pyannote.audio необходимо принять лицензию:
    - https://huggingface.co/pyannote/speaker-diarization-3.1
+
+## Database
+
+Для сохранения результатов задайте `DATABASE_URL` в `.env`:
+
+```bash
+DATABASE_URL=postgresql://postgres:YOUR-PASSWORD@db.pbmwccssuogeopghboqb.supabase.co:5432/postgres
+```
    - https://huggingface.co/pyannote/segmentation-3.0
 
 ## Docker Compose
@@ -132,7 +140,7 @@ enable_diarization: bool - optional, default: false
   "raw_text": "transcribed text...",
   "words": [{"word": "hello", "start": 0.12, "end": 0.42}],
   "srt": "1\n00:00:00,120 --> 00:00:01,400\nhello\n",
-  "speaker_srt": "1\n00:00:00,120 --> 00:00:01,400\nSPEAKER_00: hello\n",
+  "speaker_srt": [{"start": 0.12, "end": 1.4, "text": "SPEAKER_00: hello"}],
   "srt_segments": [{"start": 0.12, "end": 1.4, "text": "hello"}],
   "speaker_segments": [{"start": 0.12, "end": 1.4, "speaker": "SPEAKER_00", "text": "hello"}],
   "processing_time": 45.2,
@@ -142,6 +150,8 @@ enable_diarization: bool - optional, default: false
 
 ### 4. GET /result/{task_id}
 Скачать JSON с результатом (все варианты сразу)
+
+Результаты сохраняются только в Postgres (таблица `public.parakeet`), файловый вывод не используется.
 
 ### 5. GET /
 Web интерфейс
@@ -154,7 +164,14 @@ Web интерфейс
 - ✅ Валидация типа файла (только аудио/видео)
 - ✅ Санитайзинг filename (защита от path traversal)
 - ✅ Автоматическое удаление временных файлов
+- ✅ Удаление файлов в `./uploads` старше 24 часов
 - ⚠️  .env в .gitignore (но обязательно использовать уникальные токены)
+
+## Очередь задач
+
+- Максимум 3 параллельные транскрибации
+- Максимум 100 задач в очереди
+- При переполнении API возвращает `429 Too Many Requests`
 
 ## Пример использования cURL
 
@@ -166,10 +183,12 @@ curl -X POST http://localhost:4787/transcribe \
   -F "enable_diarization=true"
 
 # Проверить статус (когда completed вернёт text)
-curl http://localhost:4787/status/{task_id}
+curl http://localhost:4787/status/{task_id} \
+  -H "X-API-Key: YOUR_API_KEY"
 
 # Скачать результат
-curl http://localhost:4787/result/{task_id} -o result.txt
+curl http://localhost:4787/result/{task_id} \
+  -H "X-API-Key: YOUR_API_KEY" -o result.json
 ```
 
 ## Структура проекта
@@ -194,7 +213,7 @@ stt-api/
 ├── static/
 │   └── index.html          # Web UI
 ├── uploads/               # Temp uploads (auto-delete)
-├── transcriptions/        # Results storage
+├── transcriptions/        # Legacy folder (results stored in DB)
 ├── models/                # Model cache
 ├── Dockerfile
 ├── docker-compose.yml
