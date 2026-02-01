@@ -1,0 +1,31 @@
+services:
+  api:
+    build: .
+    container_name: stt-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - HF_HOME=/app/models
+      - HF_HUB_CACHE=/app/models
+      - HF_HUB_DISABLE_SYMLINKS_WARNING=true
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./transcriptions:/app/transcriptions
+      - ./models:/app/models
+    networks:
+      - stt-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: python -m app.main
+
+networks:
+  stt-network:
+    driver: bridge

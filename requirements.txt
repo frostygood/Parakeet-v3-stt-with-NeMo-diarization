@@ -1,0 +1,25 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.17
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# Audio/Video processing
+ffmpeg-python==0.2.0
+pydub==0.25.1
+numpy==1.26.4
+
+# ASR with ONNX
+onnxruntime==1.20.1
+onnx-asr
+
+# Speaker diarization (still needs torch)
+torch==2.5.1
+pyannote.audio==3.3.2
+
+# HuggingFace
+huggingface-hub==0.26.3
+
+# Utilities
+aiofiles==24.1.0

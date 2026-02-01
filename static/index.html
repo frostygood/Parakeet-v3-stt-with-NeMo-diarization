@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STT API - Speech-to-Text Transcription</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 60px 40px;
+            text-align: center;
+            background: #f8f9ff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area:hover {
+            background: #eef1ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area.dragover {
+            background: #e0e7ff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            font-size: 1.2em;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: #999;
+            font-size: 0.9em;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .file-info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        .settings {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .settings h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .setting-group {
+            margin-bottom: 15px;
+        }
+        
+        .setting-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        .setting-group input,
+        .setting-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .setting-group input:focus,
+        .setting-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            width: 20px;
+            height: 20px;
+            accent-color: #667eea;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .progress-section {
+            display: none;
+            margin-top: 20px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        
+        .progress-section.show {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        .progress-text {
+            text-align: center;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .result-section {
+            display: none;
+            margin-top: 20px;
+            padding: 25px;
+            background: #e8f5e9;
+            border-radius: 12px;
+            border-left: 4px solid #4caf50;
+        }
+        
+        .result-section.show {
+            display: block;
+        }
+        
+        .result-section.error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        
+        .result-text {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .download-btn {
+            background: #4caf50;
+            display: inline-block;
+            width: auto;
+            padding: 10px 25px;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ STT API</h1>
+        <p class="subtitle">Speech-to-Text with Parakeet v3 & Speaker Diarization</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Перетащите файл сюда или кликните для выбора</div>
+            <div class="upload-hint">Поддерживаются аудио (MP3, WAV, FLAC) и видео (MP4, AVI, MOV) файлы</div>
+            <input type="file" id="fileInput" accept="audio/*,video/*">
+        </div>
+        
+        <div class="file-info" id="fileInfo">
+            <strong>Выбранный файл:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
+        </div>
+        
+        <button class="btn" id="transcribeBtn" disabled>
+            Начать транскрибацию
+        </button>
+        
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Подготовка...</div>
+        </div>
+        
+        <div class="result-section" id="resultSection">
+            <h3>✅ Результат</h3>
+            <div class="result-text" id="resultText"></div>
+            <a href="#" class="btn download-btn" id="downloadBtn" download>Скачать результат</a>
+            <button class="btn download-btn" id="newTranscriptionBtn" style="background: #667eea;">Новая транскрибация</button>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const transcribeBtn = document.getElementById('transcribeBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const resultSection = document.getElementById('resultSection');
+        const resultText = document.getElementById('resultText');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const newTranscriptionBtn = document.getElementById('newTranscriptionBtn');
+        
+        let selectedFile = null;
+        let taskId = null;
+        
+        // Drag and drop
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.add('show');
+            transcribeBtn.disabled = false;
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        transcribeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            transcribeBtn.disabled = true;
+            transcribeBtn.innerHTML = '<span class="spinner"></span> Загрузка и обработка...';
+            progressSection.classList.add('show');
+            
+            try {
+                // Upload file and start transcription in one request
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                
+                updateProgress(10, 'Загрузка файла...');
+                
+                const response = await fetch('/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                taskId = data.task_id;
+                
+                updateProgress(20, 'Файл загружен, начинаем транскрибацию...');
+                
+                // Poll status
+                pollStatus(taskId);
+                
+            } catch (error) {
+                showError('Ошибка: ' + error.message);
+            }
+        });
+        
+        async function pollStatus(taskId) {
+            const checkStatus = async () => {
+                try {
+                    const response = await fetch(`/status/${taskId}`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'pending') {
+                        updateProgress(25, 'Ожидание в очереди...');
+                    } else if (data.status === 'processing') {
+                        const progress = 30 + Math.round((data.progress / 100) * 60);
+                        updateProgress(progress, data.step || 'Обработка...');
+                    } else if (data.status === 'completed') {
+                        updateProgress(100, 'Готово!');
+                        const rawText = data.raw_text || data.text || '';
+                        const speakerText = data.speaker_text || '';
+                        const srtText = data.srt || '';
+                        let combined = rawText;
+                        if (speakerText) {
+                            combined += '\n\n--- Спикеры ---\n\n' + speakerText;
+                        }
+                        if (srtText) {
+                            combined += '\n\n--- SRT ---\n\n' + srtText;
+                        }
+                        resultText.textContent = combined;
+                        downloadBtn.href = `/result/${taskId}`;
+                        resultSection.classList.add('show');
+                        progressSection.classList.remove('show');
+                        transcribeBtn.innerHTML = 'Начать транскрибацию';
+                        return;
+                    } else if (data.status === 'failed') {
+                        showError('Ошибка обработки: ' + (data.error || 'Неизвестная ошибка'));
+                        return;
+                    }
+                    
+                    setTimeout(checkStatus, 2000);
+                } catch (error) {
+                    showError('Ошибка проверки статуса: ' + error.message);
+                }
+            };
+            
+            checkStatus();
+        }
+        
+        function updateProgress(percent, text) {
+            progressFill.style.width = percent + '%';
+            progressText.textContent = text;
+        }
+        
+        function showError(message) {
+            resultText.textContent = message;
+            resultSection.classList.add('show', 'error');
+            progressSection.classList.remove('show');
+            transcribeBtn.disabled = false;
+            transcribeBtn.innerHTML = 'Начать транскрибацию';
+        }
+        
+        newTranscriptionBtn.addEventListener('click', () => {
+            location.reload();
+        });
+    </script>
+</body>
+</html>
