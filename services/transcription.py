@@ -1,5 +1,4 @@
 import os
-import os
 import re
 import onnxruntime as ort
 from typing import List, Dict, Any, Optional
@@ -17,7 +16,6 @@ class ParakeetTranscriptionService:
     
     _instance = None
     _model = None
-    _config = None
     
     def __new__(cls):
         if cls._instance is None:

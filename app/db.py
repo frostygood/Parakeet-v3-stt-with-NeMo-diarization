@@ -6,6 +6,8 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
 from app.config import settings
+
+
 def _get_database_url() -> str:
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL is not configured")

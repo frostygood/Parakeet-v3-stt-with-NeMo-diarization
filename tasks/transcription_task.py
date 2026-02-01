@@ -7,6 +7,7 @@ from app.db import save_transcription
 from app.logging_config import get_logger
 from app.task_store import task_store
 from app.config import settings
+from app.result_payload import build_result_record
 from app.utils import get_audio_output_path, cleanup_old_uploads
 from app.constants import (
     PROGRESS_INIT,
@@ -21,50 +22,6 @@ from services.diarization import diarization_service
 from services.audio_processor import audio_processor
 
 logger = get_logger(__name__)
-
-
-def format_time(seconds: float) -> str:
-    """
-    Format seconds to SRT time format (HH:MM:SS,mmm).
-    
-    Args:
-        seconds: Time in seconds
-        
-    Returns:
-        Formatted time string
-    """
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int((seconds % 1) * 1000)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
-
-
-def generate_srt(segments: List[Dict[str, Any]]) -> str:
-    """
-    Generate SRT subtitle format from segments.
-    
-    Args:
-        segments: List of transcription segments
-        
-    Returns:
-        SRT formatted string
-    """
-    srt_lines = []
-    for i, seg in enumerate(segments, 1):
-        start = format_time(seg['start'])
-        end = format_time(seg['end'])
-        text = seg['text'].strip()
-        
-        if 'speaker' in seg:
-            text = f"[{seg['speaker']}] {text}"
-        
-        srt_lines.append(f"{i}")
-        srt_lines.append(f"{start} --> {end}")
-        srt_lines.append(text)
-        srt_lines.append("")
-    
-    return "\n".join(srt_lines)
 
 
 def process_transcription(
@@ -145,8 +102,11 @@ def process_transcription(
                 chunk_length_s=chunk_length_s,
             )
             
-            segments = transcription_result['segments']
-            logger.info(f"Transcription completed: {len(segments)} segments")
+            transcription_segments = transcription_result['segments']
+            logger.info(
+                "Transcription completed: %s segments",
+                len(transcription_segments)
+            )
             
             if enable_diarization:
                 task_store.update(
@@ -158,7 +118,7 @@ def process_transcription(
                 
                 diarization_segments = diarization_service.diarize(audio_path)
                 speaker_segments = diarization_service.merge_with_transcription(
-                    transcription_result['segments'],
+                    transcription_segments,
                     diarization_segments,
                 )
                 logger.info(
@@ -181,45 +141,16 @@ def process_transcription(
                 step="Saving results",
             )
 
-            raw_text = transcription_result.get('raw_text') or transcription_result.get('text', '')
-            words = transcription_result.get('words', [])
-            srt_segments = transcription_result.get('segments', [])
-            srt_text = generate_srt(srt_segments)
-
-            speaker_lines = []
-            speaker_srt = []
-            for seg in speaker_segments:
-                line = f"[{seg['start']:.2f} - {seg['end']:.2f}]"
-                if 'speaker' in seg:
-                    line += f" {seg['speaker']}:"
-                line += f" {seg['text']}"
-                speaker_lines.append(line)
-
-                label = seg.get('text', '')
-                if seg.get('speaker'):
-                    label = f"{seg['speaker']}: {label}"
-                speaker_srt.append({
-                    'start': seg['start'],
-                    'end': seg['end'],
-                    'text': label,
-                })
-
-            speaker_text = "\n".join(speaker_lines)
             processing_time = time.time() - start_time
 
-            result_data = {
-                'task_id': task_id,
-                'raw_text': raw_text,
-                'words': words,
-                'srt': srt_text,
-                'speaker_srt': speaker_srt,
-                'speaker_segments': speaker_segments,
-                'diarization_segments': diarization_segments,
-                'speaker_text': speaker_text,
-                'language': transcription_result.get('language', language),
-                'duration': transcription_result.get('duration', 0.0),
-                'processing_time': processing_time,
-            }
+            result_data = build_result_record(
+                task_id=task_id,
+                transcription_result=transcription_result,
+                speaker_segments=speaker_segments,
+                diarization_segments=diarization_segments,
+                language=language,
+                processing_time=processing_time,
+            )
 
             save_transcription(result_data)
 

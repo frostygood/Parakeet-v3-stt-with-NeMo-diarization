@@ -3,7 +3,7 @@
 import re
 import time
 from pathlib import Path
-from typing import Tuple, List, Dict, Any
+from typing import List, Dict, Any
 
 from fastapi import HTTPException
 

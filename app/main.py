@@ -1,4 +1,3 @@
-import os
 import uuid
 import aiofiles
 from pathlib import Path
@@ -11,8 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.logging_config import setup_logging, get_logger
 from app.db import fetch_transcription
+from app.result_payload import build_response_payload
 from app.task_queue import TaskQueue
-from app.utils import sanitize_filename, validate_file_size, validate_file_type, parse_srt
+from app.utils import sanitize_filename, validate_file_size, validate_file_type
 from app.models import (
     TranscriptionResponse, 
     TranscriptionStatus,
@@ -31,28 +31,7 @@ app = FastAPI(
 )
 
 QUEUE_MAX_SIZE = 100
-QUEUE_WORKERS = 3
-
-
-def build_transcription_payload(row: dict) -> dict:
-    raw_text = row.get("raw_text") or ""
-    srt_text = row.get("srt") or ""
-
-    return {
-        'task_id': str(row.get('task_id') or ''),
-        'raw_text': raw_text,
-        'text': raw_text,
-        'words': row.get('words') or [],
-        'srt': srt_text,
-        'speaker_srt': row.get('speaker_srt') or [],
-        'srt_segments': parse_srt(srt_text),
-        'speaker_segments': row.get('speaker_segments') or [],
-        'diarization_segments': row.get('diarization_segments') or [],
-        'speaker_text': row.get('speaker_text') or "",
-        'processing_time': row.get('processing_time'),
-        'duration': row.get('duration'),
-        'language': row.get('language')
-    }
+QUEUE_WORKERS = 2
 
 
 @app.middleware("http")
@@ -259,7 +238,7 @@ async def get_status(task_id: str):
                 raise HTTPException(status_code=404, detail="Result not found")
             raise HTTPException(status_code=404, detail="Task not found")
 
-        response = build_transcription_payload(row)
+        response = build_response_payload(row)
         response['task_id'] = task_id
         response['status'] = 'completed'
         response['result_url'] = f"/result/{task_id}"
@@ -293,7 +272,7 @@ async def get_result(task_id: str):
         if not row:
             raise HTTPException(status_code=404, detail="Result not found")
 
-        payload = build_transcription_payload(row)
+        payload = build_response_payload(row)
         payload['task_id'] = task_id
 
         return JSONResponse(
