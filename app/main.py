@@ -3,8 +3,8 @@ import uuid
 import aiofiles
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,6 +28,32 @@ app = FastAPI(
     description="Speech-to-Text API with Parakeet v3 and Speaker Diarization",
     version="1.0.0"
 )
+
+
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    path = request.url.path
+    if (
+        path == "/"
+        or path == "/health"
+        or path.startswith("/static")
+        or path in {"/docs", "/openapi.json", "/redoc"}
+    ):
+        return await call_next(request)
+
+    expected_key = settings.api_key
+    if not expected_key:
+        logger.error("API key is not configured")
+        return JSONResponse(status_code=500, content={"detail": "API key not configured"})
+
+    provided_key = request.headers.get("X-API-Key")
+    if provided_key != expected_key:
+        return JSONResponse(status_code=401, content={"detail": "Invalid API key"})
+
+    return await call_next(request)
 
 # CORS - TODO: Configure allowed origins from settings
 app.add_middleware(
@@ -72,6 +98,7 @@ async def health_check():
 async def transcribe(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    enable_diarization: bool = Form(False),
 ):
     """
     Upload file and start transcription task.
@@ -120,7 +147,8 @@ async def transcribe(
             process_transcription,
             file_path=str(file_path),
             task_id=task_id,
-            language="auto"
+            language="auto",
+            enable_diarization=enable_diarization,
         )
         
         return TranscriptionResponse(
@@ -179,6 +207,7 @@ async def get_status(task_id: str):
                 'text': result.get('raw_text'),
                 'words': result.get('words'),
                 'srt': result.get('srt'),
+                'speaker_srt': result.get('speaker_srt'),
                 'srt_segments': result.get('srt_segments'),
                 'speaker_segments': result.get('speaker_segments'),
                 'diarization_segments': result.get('diarization_segments'),

@@ -71,6 +71,7 @@ def process_transcription(
     file_path: str,
     task_id: str,
     language: str = "auto",
+    enable_diarization: bool = False,
     chunk_length_s: float = DEFAULT_CHUNK_LENGTH_S,
     max_retries: int = 3,
     retry_delay_s: int = 60,
@@ -82,6 +83,7 @@ def process_transcription(
         file_path: Path to uploaded file
         task_id: Unique task identifier
         language: Language code (always 'auto')
+        enable_diarization: Enable speaker diarization
         chunk_length_s: Audio chunk length in seconds
         max_retries: Maximum number of retries for transient failures
         retry_delay_s: Delay between retries in seconds
@@ -146,19 +148,31 @@ def process_transcription(
             segments = transcription_result['segments']
             logger.info(f"Transcription completed: {len(segments)} segments")
             
-            task_store.update(
-                task_id,
-                status="processing",
-                progress=PROGRESS_DIARIZATION,
-                step="Performing speaker diarization",
-            )
-            
-            diarization_segments = diarization_service.diarize(audio_path)
-            speaker_segments = diarization_service.merge_with_transcription(
-                transcription_result['segments'],
-                diarization_segments,
-            )
-            logger.info(f"Diarization completed: {len(diarization_segments)} speaker segments")
+            if enable_diarization:
+                task_store.update(
+                    task_id,
+                    status="processing",
+                    progress=PROGRESS_DIARIZATION,
+                    step="Performing speaker diarization",
+                )
+                
+                diarization_segments = diarization_service.diarize(audio_path)
+                speaker_segments = diarization_service.merge_with_transcription(
+                    transcription_result['segments'],
+                    diarization_segments,
+                )
+                logger.info(
+                    f"Diarization completed: {len(diarization_segments)} speaker segments"
+                )
+            else:
+                task_store.update(
+                    task_id,
+                    status="processing",
+                    progress=PROGRESS_DIARIZATION,
+                    step="Skipping speaker diarization",
+                )
+                diarization_segments = []
+                speaker_segments = []
             
             task_store.update(
                 task_id,
@@ -177,6 +191,7 @@ def process_transcription(
             srt_text = generate_srt(srt_segments)
 
             speaker_lines = []
+            speaker_srt = ""
             for seg in speaker_segments:
                 line = f"[{seg['start']:.2f} - {seg['end']:.2f}]"
                 if 'speaker' in seg:
@@ -185,6 +200,19 @@ def process_transcription(
                 speaker_lines.append(line)
             speaker_text = "\n".join(speaker_lines)
 
+            if speaker_segments:
+                speaker_srt_segments = []
+                for seg in speaker_segments:
+                    label = seg.get('text', '')
+                    if seg.get('speaker'):
+                        label = f"{seg['speaker']}: {label}"
+                    speaker_srt_segments.append({
+                        'start': seg['start'],
+                        'end': seg['end'],
+                        'text': label,
+                    })
+                speaker_srt = generate_srt(speaker_srt_segments)
+
             processing_time = time.time() - start_time
 
             result_data = {
@@ -192,6 +220,7 @@ def process_transcription(
                 'raw_text': raw_text,
                 'words': words,
                 'srt': srt_text,
+                'speaker_srt': speaker_srt,
                 'srt_segments': srt_segments,
                 'speaker_segments': speaker_segments,
                 'diarization_segments': diarization_segments,
@@ -217,6 +246,7 @@ def process_transcription(
                 'raw_text': raw_text,
                 'words': words,
                 'srt': srt_text,
+                'speaker_srt': speaker_srt,
                 'srt_segments': srt_segments,
                 'speaker_segments': speaker_segments,
                 'diarization_segments': diarization_segments,

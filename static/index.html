@@ -274,6 +274,18 @@
         <div class="file-info" id="fileInfo">
             <strong>Выбранный файл:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
         </div>
+
+        <div class="settings">
+            <h3>⚙️ Настройки транскрибации</h3>
+            <div class="setting-group">
+                <label for="apiKey">API ключ</label>
+                <input type="password" id="apiKey" placeholder="Введите API ключ">
+            </div>
+            <div class="setting-group checkbox-group">
+                <input type="checkbox" id="enableDiarization">
+                <label for="enableDiarization" style="margin-bottom: 0;">Разделение на спикеров (Diarization)</label>
+            </div>
+        </div>
         
         <button class="btn" id="transcribeBtn" disabled>
             Начать транскрибацию
@@ -300,6 +312,8 @@
         const fileInfo = document.getElementById('fileInfo');
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
+        const enableDiarization = document.getElementById('enableDiarization');
+        const apiKeyInput = document.getElementById('apiKey');
         const transcribeBtn = document.getElementById('transcribeBtn');
         const progressSection = document.getElementById('progressSection');
         const progressFill = document.getElementById('progressFill');
@@ -311,6 +325,14 @@
         
         let selectedFile = null;
         let taskId = null;
+
+        const savedApiKey = localStorage.getItem('apiKey');
+        if (savedApiKey) {
+            apiKeyInput.value = savedApiKey;
+        }
+        apiKeyInput.addEventListener('input', () => {
+            localStorage.setItem('apiKey', apiKeyInput.value.trim());
+        });
         
         // Drag and drop
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -366,11 +388,15 @@
                 // Upload file and start transcription in one request
                 const formData = new FormData();
                 formData.append('file', selectedFile);
+                formData.append('enable_diarization', enableDiarization.checked);
                 
                 updateProgress(10, 'Загрузка файла...');
                 
                 const response = await fetch('/transcribe', {
                     method: 'POST',
+                    headers: {
+                        'X-API-Key': apiKeyInput.value.trim()
+                    },
                     body: formData
                 });
                 
@@ -390,7 +416,11 @@
         async function pollStatus(taskId) {
             const checkStatus = async () => {
                 try {
-                    const response = await fetch(`/status/${taskId}`);
+                    const response = await fetch(`/status/${taskId}`, {
+                        headers: {
+                            'X-API-Key': apiKeyInput.value.trim()
+                        }
+                    });
                     const data = await response.json();
                     
                     if (data.status === 'pending') {
@@ -402,16 +432,20 @@
                         updateProgress(100, 'Готово!');
                         const rawText = data.raw_text || data.text || '';
                         const speakerText = data.speaker_text || '';
+                        const speakerSrt = data.speaker_srt || '';
                         const srtText = data.srt || '';
                         let combined = rawText;
                         if (speakerText) {
                             combined += '\n\n--- Спикеры ---\n\n' + speakerText;
                         }
+                        if (speakerSrt) {
+                            combined += '\n\n--- Speaker SRT ---\n\n' + speakerSrt;
+                        }
                         if (srtText) {
                             combined += '\n\n--- SRT ---\n\n' + srtText;
                         }
                         resultText.textContent = combined;
-                        downloadBtn.href = `/result/${taskId}`;
+                        downloadBtn.href = '#';
                         resultSection.classList.add('show');
                         progressSection.classList.remove('show');
                         transcribeBtn.innerHTML = 'Начать транскрибацию';
@@ -445,6 +479,32 @@
         
         newTranscriptionBtn.addEventListener('click', () => {
             location.reload();
+        });
+
+        downloadBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            if (!taskId) return;
+            try {
+                const response = await fetch(`/result/${taskId}`, {
+                    headers: {
+                        'X-API-Key': apiKeyInput.value.trim()
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Не удалось скачать результат');
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `transcription_${taskId}.json`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                showError('Ошибка скачивания: ' + error.message);
+            }
         });
     </script>
 </body>

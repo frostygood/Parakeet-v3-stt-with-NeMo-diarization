@@ -17,10 +17,9 @@ git clone <repo-url>
 cd stt-api
 ```
 
-2. Создайте .env файл с токеном:
+2. Создайте .env файл с токеном и API ключом:
 ```bash
-cp .env.example .env
-# Отредактируйте .env и добавьте ваш HuggingFace токен
+# Отредактируйте .env и добавьте ваш HuggingFace токен и API_KEY
 ```
 
 3. Запустите сервис:
@@ -88,13 +87,14 @@ POST /transcribe
 Content-Type: multipart/form-data
 
 file: file (required)
+enable_diarization: bool - optional, default: false
 ```
 
 По умолчанию сервис делает:
 - сырую транскрибацию
 - разбивку по словам с таймкодами
 - умную сегментацию для SRT
-- разбивку на спикеров с таймкодами
+- разбивку на спикеров с таймкодами (если enable_diarization=true)
 
 **Response:**
 ```json
@@ -132,6 +132,7 @@ file: file (required)
   "raw_text": "transcribed text...",
   "words": [{"word": "hello", "start": 0.12, "end": 0.42}],
   "srt": "1\n00:00:00,120 --> 00:00:01,400\nhello\n",
+  "speaker_srt": "1\n00:00:00,120 --> 00:00:01,400\nSPEAKER_00: hello\n",
   "srt_segments": [{"start": 0.12, "end": 1.4, "text": "hello"}],
   "speaker_segments": [{"start": 0.12, "end": 1.4, "speaker": "SPEAKER_00", "text": "hello"}],
   "processing_time": 45.2,
@@ -147,6 +148,8 @@ Web интерфейс
 
 ## Безопасность
 
+- ✅ Проверка API ключа через заголовок `X-API-Key`
+- ✅ Для всех API запросов требуется `X-API-Key`, кроме `/health` и статических файлов
 - ✅ Валидация размера файла (максимум 500MB)
 - ✅ Валидация типа файла (только аудио/видео)
 - ✅ Санитайзинг filename (защита от path traversal)
@@ -158,7 +161,9 @@ Web интерфейс
 ```bash
 # Загрузить файл и начать транскрибацию
 curl -X POST http://localhost:8000/transcribe \
-  -F "file=@audio.mp3"
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "file=@audio.mp3" \
+  -F "enable_diarization=true"
 
 # Проверить статус (когда completed вернёт text)
 curl http://localhost:8000/status/{task_id}

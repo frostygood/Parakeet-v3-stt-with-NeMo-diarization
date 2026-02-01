@@ -4,6 +4,7 @@ from enum import Enum
 
 class TranscriptionRequest(BaseModel):
     language: Optional[str] = "auto"
+    enable_diarization: bool = False
     chunk_length_s: float = 60.0
 
 class TranscriptionStatus(str, Enum):
@@ -24,6 +25,7 @@ class TranscriptionResult(BaseModel):
     raw_text: str
     words: List[Dict[str, Any]]
     srt: str
+    speaker_srt: str
     srt_segments: List[Dict[str, Any]]
     speaker_segments: List[Dict[str, Any]]
     diarization_segments: Optional[List[Dict[str, Any]]] = None
