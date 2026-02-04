@@ -31,7 +31,7 @@ app = FastAPI(
 )
 
 QUEUE_MAX_SIZE = 100
-QUEUE_WORKERS = 2
+QUEUE_WORKERS = 1
 
 
 @app.middleware("http")
