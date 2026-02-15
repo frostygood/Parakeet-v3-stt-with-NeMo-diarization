@@ -1,6 +1,6 @@
 import torch
 from pyannote.audio import Pipeline
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 
 from app.logging_config import get_logger
@@ -42,7 +42,13 @@ class DiarizationService:
             logger.error(f"Error loading diarization pipeline: {e}", exc_info=True)
             raise
     
-    def diarize(self, audio_path: str) -> List[Dict[str, Any]]:
+    def diarize(
+        self,
+        audio_path: str,
+        num_speakers: Optional[int] = None,
+        min_speakers: Optional[int] = None,
+        max_speakers: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Perform speaker diarization on audio file.
         
@@ -58,7 +64,19 @@ class DiarizationService:
         try:
             logger.debug(f"Starting diarization for: {audio_path}")
             
-            diarization = self._pipeline(audio_path)
+            pipeline_kwargs: Dict[str, Any] = {}
+            if num_speakers is not None:
+                pipeline_kwargs["num_speakers"] = num_speakers
+            else:
+                if min_speakers is not None:
+                    pipeline_kwargs["min_speakers"] = min_speakers
+                if max_speakers is not None:
+                    pipeline_kwargs["max_speakers"] = max_speakers
+
+            if pipeline_kwargs:
+                diarization = self._pipeline(audio_path, **pipeline_kwargs)
+            else:
+                diarization = self._pipeline(audio_path)
             
             speakers = []
             for turn, _, speaker in diarization.itertracks(yield_label=True):

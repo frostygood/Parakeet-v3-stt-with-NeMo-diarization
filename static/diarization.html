@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STT Studio - Speaker Diarization</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f6f1e8;
+            --bg-alt: #e8f3f1;
+            --card: #ffffff;
+            --text: #1f2933;
+            --muted: #5f6b7a;
+            --accent: #0f766e;
+            --accent-dark: #0b5f59;
+            --accent-warm: #e76f51;
+            --accent-soft: #f2d5c4;
+            --border: #e6e2d8;
+            --shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+            --radius: 18px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Manrope", sans-serif;
+            color: var(--text);
+            background: radial-gradient(circle at 20% 10%, #f8efe2 0%, rgba(248, 239, 226, 0) 55%),
+                radial-gradient(circle at 80% 0%, #e1f3f0 0%, rgba(225, 243, 240, 0) 50%),
+                linear-gradient(160deg, var(--bg) 0%, var(--bg-alt) 100%);
+            min-height: 100vh;
+            padding: 28px 24px 40px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            filter: blur(0px);
+            opacity: 0.4;
+            z-index: 0;
+        }
+
+        body::before {
+            background: radial-gradient(circle, rgba(231, 111, 81, 0.35), transparent 70%);
+            top: -80px;
+            right: -80px;
+        }
+
+        body::after {
+            background: radial-gradient(circle, rgba(15, 118, 110, 0.25), transparent 70%);
+            bottom: -120px;
+            left: -80px;
+        }
+
+        .page {
+            max-width: 1250px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--accent) 0%, #17a398 100%);
+            display: grid;
+            place-items: center;
+            color: white;
+            font-weight: 700;
+            font-family: "Sora", sans-serif;
+            box-shadow: 0 12px 28px rgba(15, 118, 110, 0.3);
+        }
+
+        .brand h1 {
+            font-family: "Sora", sans-serif;
+            font-size: 1.9rem;
+            font-weight: 600;
+        }
+
+        .brand p {
+            color: var(--muted);
+            margin-top: 4px;
+            font-size: 0.95rem;
+        }
+
+        .nav {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: var(--accent);
+            font-weight: 600;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 118, 110, 0.2);
+            background: rgba(255, 255, 255, 0.8);
+            transition: all 0.2s ease;
+        }
+
+        .nav a:hover {
+            background: rgba(15, 118, 110, 0.12);
+            border-color: rgba(15, 118, 110, 0.4);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stack {
+            display: grid;
+            gap: 18px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 20px 22px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(230, 226, 216, 0.7);
+            animation: floatUp 0.6s ease both;
+        }
+
+        .card:nth-child(2) {
+            animation-delay: 0.05s;
+        }
+
+        .card:nth-child(3) {
+            animation-delay: 0.1s;
+        }
+
+        .card:nth-child(4) {
+            animation-delay: 0.15s;
+        }
+
+        @keyframes floatUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .card-header h2,
+        .card-header h3 {
+            font-family: "Sora", sans-serif;
+            font-size: 1.1rem;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            color: var(--accent-dark);
+            background: rgba(15, 118, 110, 0.12);
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(15, 118, 110, 0.35);
+            border-radius: 16px;
+            padding: 26px;
+            text-align: center;
+            background: rgba(15, 118, 110, 0.04);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .upload-area.dragover {
+            background: rgba(231, 111, 81, 0.08);
+            border-color: rgba(231, 111, 81, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .upload-area h4 {
+            font-family: "Sora", sans-serif;
+            font-size: 1rem;
+            margin-bottom: 6px;
+        }
+
+        .upload-area p {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-info {
+            display: none;
+            margin-top: 16px;
+            background: #faf9f6;
+            border-radius: 14px;
+            padding: 12px 14px;
+            border: 1px solid rgba(230, 226, 216, 0.7);
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .file-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .file-meta {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        .chip-btn {
+            border: none;
+            background: rgba(231, 111, 81, 0.12);
+            color: var(--accent-warm);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .fields {
+            display: grid;
+            gap: 12px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(230, 226, 216, 0.9);
+            font-size: 0.95rem;
+            transition: border 0.2s ease;
+        }
+
+        .field input:focus {
+            outline: none;
+            border-color: rgba(15, 118, 110, 0.6);
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(15, 118, 110, 0.04);
+            padding: 10px 12px;
+            border-radius: 12px;
+        }
+
+        .toggle input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+
+        .toggle span {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .actions {
+            display: grid;
+            gap: 10px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #17a398 100%);
+            color: white;
+            box-shadow: 0 12px 24px rgba(15, 118, 110, 0.25);
+        }
+
+        .btn.primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn.ghost {
+            background: rgba(15, 118, 110, 0.08);
+            color: var(--accent);
+        }
+
+        .btn.subtle {
+            background: rgba(231, 111, 81, 0.1);
+            color: var(--accent-warm);
+            text-decoration: none;
+            text-align: center;
+        }
+
+        .progress {
+            display: none;
+        }
+
+        .progress.show {
+            display: block;
+        }
+
+        .progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: rgba(15, 118, 110, 0.12);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, #17a398 100%);
+            transition: width 0.3s ease;
+        }
+
+        .result {
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin: 14px 0 18px;
+        }
+
+        .summary-item {
+            background: #f9f7f2;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(230, 226, 216, 0.6);
+        }
+
+        .summary-item span {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        .summary-item strong {
+            font-size: 1rem;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .result-block.full-span {
+            grid-column: 1 / -1;
+        }
+
+        .result-block {
+            background: #faf9f6;
+            border-radius: 14px;
+            padding: 14px;
+            border: 1px solid rgba(230, 226, 216, 0.6);
+        }
+
+        .block-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .block-header h4 {
+            font-family: "Sora", sans-serif;
+            font-size: 0.95rem;
+        }
+
+        .icon-btn {
+            border: none;
+            background: rgba(15, 118, 110, 0.08);
+            color: var(--accent);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        .text-box {
+            background: white;
+            border-radius: 10px;
+            padding: 10px;
+            max-height: 240px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .table-wrap {
+            max-height: 240px;
+            overflow: auto;
+            border-radius: 10px;
+            background: white;
+            border: 1px solid rgba(230, 226, 216, 0.6);
+        }
+
+        .table-wrap.tall {
+            max-height: 340px;
+        }
+
+        .speaker-text-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .speaker-text-table td:last-child {
+            word-break: break-word;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th,
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+        }
+
+        th {
+            background: #f5f4ef;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .empty-state {
+            background: #f1efea;
+            color: #777;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+        }
+
+        .error-banner {
+            display: none;
+            background: rgba(231, 111, 81, 0.12);
+            color: #a6402a;
+            border: 1px solid rgba(231, 111, 81, 0.4);
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            font-size: 0.9rem;
+        }
+
+        .error-banner.show {
+            display: block;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,.4);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header class="topbar">
+            <div class="brand">
+                <div class="logo">ST</div>
+                <div>
+                    <h1>STT Studio</h1>
+                    <p>Транскрибация с diarization и временными метками.</p>
+                </div>
+            </div>
+            <nav class="nav">
+                <a href="/history">История</a>
+            </nav>
+        </header>
+
+        <main class="layout">
+            <section class="stack">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Загрузка</h2>
+                        <span class="badge">Audio / Video</span>
+                    </div>
+                    <div class="upload-area" id="uploadArea">
+                        <h4>Перетащите файл сюда</h4>
+                        <p>Или кликните, чтобы выбрать на устройстве</p>
+                        <p class="file-meta">MP3, WAV, FLAC, MP4, MOV, AVI, WEBM</p>
+                        <input type="file" id="fileInput" accept="audio/*,video/*">
+                    </div>
+                    <div class="file-info" id="fileInfo">
+                        <div class="file-row">
+                            <div>
+                                <strong id="fileName">Файл не выбран</strong>
+                                <div class="file-meta" id="fileMeta">—</div>
+                            </div>
+                            <button class="chip-btn" id="clearFileBtn">Сбросить</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Параметры</h2>
+                    </div>
+                    <div class="fields">
+                        <div class="field">
+                            <label for="apiKey">API ключ</label>
+                            <input type="password" id="apiKey" placeholder="Введите API ключ">
+                        </div>
+                        <div class="field">
+                            <label for="userId">user_id (опционально)</label>
+                            <input type="text" id="userId" placeholder="Внешний идентификатор пользователя">
+                        </div>
+                        <div class="toggle">
+                            <input type="checkbox" id="enableDiarization" checked>
+                            <div>
+                                <div>Разделение на спикеров</div>
+                                <span>Отключите, если нужны только слова и SRT</span>
+                            </div>
+                        </div>
+                        <div class="grid-3">
+                            <div class="field">
+                                <label for="numSpeakers">num_speakers</label>
+                                <input type="number" id="numSpeakers" min="1" step="1" placeholder="auto">
+                            </div>
+                            <div class="field">
+                                <label for="minSpeakers">min_speakers</label>
+                                <input type="number" id="minSpeakers" min="1" step="1" placeholder="auto">
+                            </div>
+                            <div class="field">
+                                <label for="maxSpeakers">max_speakers</label>
+                                <input type="number" id="maxSpeakers" min="1" step="1" placeholder="auto">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Действия</h2>
+                    </div>
+                    <div class="actions">
+                        <button class="btn primary" id="transcribeBtn" disabled>Начать транскрибацию</button>
+                        <a href="#" class="btn subtle" id="downloadBtn" download>Скачать JSON</a>
+                        <button class="btn ghost" id="newTranscriptionBtn">Новая транскрибация</button>
+                    </div>
+                </div>
+
+                <div class="card progress" id="progressSection">
+                    <div class="card-header">
+                        <h2>Прогресс</h2>
+                    </div>
+                    <div class="progress-header">
+                        <span id="progressText">Подготовка…</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="stack">
+                <div class="card result" id="resultSection">
+                    <div class="card-header">
+                        <h2>Результаты</h2>
+                        <span class="badge" id="resultStatus">Готово</span>
+                    </div>
+
+                    <div class="error-banner" id="errorBanner"></div>
+
+                    <div class="summary">
+                        <div class="summary-item">
+                            <span>Длительность</span>
+                            <strong id="summaryDuration">—</strong>
+                        </div>
+                        <div class="summary-item">
+                            <span>Время обработки</span>
+                            <strong id="summaryProcessing">—</strong>
+                        </div>
+                        <div class="summary-item">
+                            <span>Язык</span>
+                            <strong id="summaryLanguage">—</strong>
+                        </div>
+                        <div class="summary-item">
+                            <span>Спикеров</span>
+                            <strong id="summarySpeakers">—</strong>
+                        </div>
+                    </div>
+
+                    <div class="result-grid">
+                        <div class="result-block">
+                            <div class="block-header">
+                                <h4>Чистая транскрипция</h4>
+                                <button class="icon-btn" data-copy-target="rawTextOutput">Копировать</button>
+                            </div>
+                            <div class="text-box" id="rawTextOutput"></div>
+                        </div>
+                        <div class="result-block">
+                            <div class="block-header">
+                                <h4>Интервалы спикеров</h4>
+                            </div>
+                            <div class="table-wrap" id="speakerIntervalsWrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Speaker</th>
+                                            <th>Start</th>
+                                            <th>End</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="speakerIntervalsBody"></tbody>
+                                </table>
+                            </div>
+                            <div class="empty-state" id="speakerIntervalsEmpty">Нет интервалов для отображения.</div>
+                        </div>
+                        <div class="result-block full-span">
+                            <div class="block-header">
+                                <h4>Склеенная речь спикеров</h4>
+                            </div>
+                            <div class="table-wrap tall" id="speakerTextRawWrap">
+                                <table class="speaker-text-table">
+                                    <colgroup>
+                                        <col style="width: 120px;">
+                                        <col style="width: 120px;">
+                                        <col style="width: 120px;">
+                                        <col>
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>Speaker</th>
+                                            <th>Start</th>
+                                            <th>End</th>
+                                            <th>Text</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="speakerTextRawBody"></tbody>
+                                </table>
+                            </div>
+                            <div class="empty-state" id="speakerTextRawEmpty">Нет сегментов для отображения.</div>
+                        </div>
+                        <div class="result-block">
+                            <div class="block-header">
+                                <h4>Speaker SRT</h4>
+                                <button class="icon-btn" data-copy-target="speakerSrtOutput">Копировать</button>
+                            </div>
+                            <div class="text-box" id="speakerSrtOutput"></div>
+                        </div>
+                        <div class="result-block">
+                            <div class="block-header">
+                                <h4>Слова с таймингами</h4>
+                            </div>
+                            <div class="table-wrap" id="wordsWrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Word</th>
+                                            <th>Start</th>
+                                            <th>End</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="wordsBody"></tbody>
+                                </table>
+                            </div>
+                            <div class="empty-state" id="wordsEmpty">Нет слов с таймингами.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileMeta = document.getElementById('fileMeta');
+        const clearFileBtn = document.getElementById('clearFileBtn');
+        const enableDiarization = document.getElementById('enableDiarization');
+        const apiKeyInput = document.getElementById('apiKey');
+        const userIdInput = document.getElementById('userId');
+        const numSpeakersInput = document.getElementById('numSpeakers');
+        const minSpeakersInput = document.getElementById('minSpeakers');
+        const maxSpeakersInput = document.getElementById('maxSpeakers');
+        const transcribeBtn = document.getElementById('transcribeBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const progressPercent = document.getElementById('progressPercent');
+        const resultSection = document.getElementById('resultSection');
+        const resultStatus = document.getElementById('resultStatus');
+        const errorBanner = document.getElementById('errorBanner');
+        const rawTextOutput = document.getElementById('rawTextOutput');
+        const speakerIntervalsBody = document.getElementById('speakerIntervalsBody');
+        const speakerIntervalsWrap = document.getElementById('speakerIntervalsWrap');
+        const speakerIntervalsEmpty = document.getElementById('speakerIntervalsEmpty');
+        const speakerTextRawBody = document.getElementById('speakerTextRawBody');
+        const speakerTextRawWrap = document.getElementById('speakerTextRawWrap');
+        const speakerTextRawEmpty = document.getElementById('speakerTextRawEmpty');
+        const speakerSrtOutput = document.getElementById('speakerSrtOutput');
+        const wordsBody = document.getElementById('wordsBody');
+        const wordsWrap = document.getElementById('wordsWrap');
+        const wordsEmpty = document.getElementById('wordsEmpty');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const newTranscriptionBtn = document.getElementById('newTranscriptionBtn');
+        const summaryDuration = document.getElementById('summaryDuration');
+        const summaryProcessing = document.getElementById('summaryProcessing');
+        const summaryLanguage = document.getElementById('summaryLanguage');
+        const summarySpeakers = document.getElementById('summarySpeakers');
+
+        let selectedFile = null;
+        let taskId = null;
+
+        const savedApiKey = localStorage.getItem('apiKey');
+        if (savedApiKey) {
+            apiKeyInput.value = savedApiKey;
+        }
+        apiKeyInput.addEventListener('input', () => {
+            localStorage.setItem('apiKey', apiKeyInput.value);
+        });
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        clearFileBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.remove('show');
+            transcribeBtn.disabled = true;
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileMeta.textContent = `${formatFileSize(file.size)} · ${file.type || 'unknown'}`;
+            fileInfo.classList.add('show');
+            transcribeBtn.disabled = false;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatTimestamp(seconds) {
+            const totalMillis = Math.max(0, Math.floor(seconds * 1000));
+            const hours = Math.floor(totalMillis / 3600000);
+            const minutes = Math.floor((totalMillis % 3600000) / 60000);
+            const secs = Math.floor((totalMillis % 60000) / 1000);
+            const millis = totalMillis % 1000;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
+        }
+
+        function formatSrt(segments) {
+            if (!Array.isArray(segments)) return '';
+            return segments
+                .map((seg, index) => {
+                    const start = formatTimestamp(seg.start || 0);
+                    const end = formatTimestamp(seg.end || 0);
+                    const text = seg.text || '';
+                    return `${index + 1}\n${start} --> ${end}\n${text}`;
+                })
+                .join('\n\n');
+        }
+
+        function renderTableRows(body, rows) {
+            body.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            rows.forEach((row) => {
+                const tr = document.createElement('tr');
+                row.forEach((value) => {
+                    const td = document.createElement('td');
+                    td.textContent = value;
+                    tr.appendChild(td);
+                });
+                fragment.appendChild(tr);
+            });
+            body.appendChild(fragment);
+        }
+
+        function renderSpeakerIntervals(segments) {
+            if (!Array.isArray(segments) || segments.length === 0) {
+                speakerIntervalsWrap.style.display = 'none';
+                speakerIntervalsEmpty.style.display = 'block';
+                return;
+            }
+            const rows = segments.map((seg) => [
+                seg.speaker || 'UNKNOWN',
+                formatTimestamp(seg.start || 0),
+                formatTimestamp(seg.end || 0)
+            ]);
+            renderTableRows(speakerIntervalsBody, rows);
+            speakerIntervalsWrap.style.display = 'block';
+            speakerIntervalsEmpty.style.display = 'none';
+        }
+
+        function renderSpeakerTextRaw(segments) {
+            if (!Array.isArray(segments) || segments.length === 0) {
+                speakerTextRawWrap.style.display = 'none';
+                speakerTextRawEmpty.style.display = 'block';
+                return;
+            }
+            const rows = segments.map((seg) => [
+                seg.speaker || 'UNKNOWN',
+                formatTimestamp(seg.start || 0),
+                formatTimestamp(seg.end || 0),
+                seg.text || ''
+            ]);
+            renderTableRows(speakerTextRawBody, rows);
+            speakerTextRawWrap.style.display = 'block';
+            speakerTextRawEmpty.style.display = 'none';
+        }
+
+        function renderWords(words) {
+            if (!Array.isArray(words) || words.length === 0) {
+                wordsWrap.style.display = 'none';
+                wordsEmpty.style.display = 'block';
+                return;
+            }
+            const rows = words.map((item) => [
+                item.word || '',
+                formatTimestamp(item.start || 0),
+                formatTimestamp(item.end || 0)
+            ]);
+            renderTableRows(wordsBody, rows);
+            wordsWrap.style.display = 'block';
+            wordsEmpty.style.display = 'none';
+        }
+
+        function updateSummary(data) {
+            const duration = data.duration ?? null;
+            const processing = data.processing_time ?? null;
+            const language = data.language || 'auto';
+            const speakers = new Set((data.diarization_segments || []).map((seg) => seg.speaker || 'UNKNOWN')).size;
+
+            summaryDuration.textContent = duration ? `${Number(duration).toFixed(2)}s` : '—';
+            summaryProcessing.textContent = processing ? `${Number(processing).toFixed(2)}s` : '—';
+            summaryLanguage.textContent = language || '—';
+            summarySpeakers.textContent = speakers ? `${speakers}` : '—';
+        }
+
+        function renderResult(data) {
+            errorBanner.classList.remove('show');
+            resultStatus.textContent = 'Готово';
+            resultSection.classList.add('show');
+
+            const rawText = data.raw_text || data.text || '';
+            rawTextOutput.textContent = rawText || 'Нет текста транскрипции.';
+            renderSpeakerIntervals(data.diarization_segments || []);
+
+            const speakerSrt = formatSrt(data.speaker_srt || []);
+            speakerSrtOutput.textContent = speakerSrt || 'Нет Speaker SRT.';
+
+            renderSpeakerTextRaw(data.speaker_text_raw || []);
+
+            renderWords(data.words || []);
+            updateSummary(data);
+        }
+
+        transcribeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            transcribeBtn.disabled = true;
+            transcribeBtn.innerHTML = '<span class="spinner"></span> Обработка...';
+            progressSection.classList.add('show');
+            resultSection.classList.remove('show');
+            errorBanner.classList.remove('show');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('enable_diarization', enableDiarization.checked);
+
+                const userIdValue = userIdInput.value;
+                if (userIdValue !== '') {
+                    formData.append('user_id', userIdValue);
+                }
+
+                const numSpeakersValue = numSpeakersInput.value.trim();
+                const minSpeakersValue = minSpeakersInput.value.trim();
+                const maxSpeakersValue = maxSpeakersInput.value.trim();
+
+                if (numSpeakersValue !== '') {
+                    formData.append('num_speakers', numSpeakersValue);
+                }
+                if (minSpeakersValue !== '') {
+                    formData.append('min_speakers', minSpeakersValue);
+                }
+                if (maxSpeakersValue !== '') {
+                    formData.append('max_speakers', maxSpeakersValue);
+                }
+
+                updateProgress(10, 'Загрузка файла...');
+
+                const response = await fetch('/transcribe', {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': apiKeyInput.value
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Ошибка запуска транскрибации');
+                }
+                taskId = data.task_id;
+
+                updateProgress(20, 'Файл загружен, начинаем обработку...');
+                pollStatus(taskId);
+
+            } catch (error) {
+                showError('Ошибка: ' + error.message);
+            }
+        });
+
+        async function pollStatus(id) {
+            const checkStatus = async () => {
+                try {
+                    const response = await fetch(`/status/${id}`, {
+                        headers: {
+                            'X-API-Key': apiKeyInput.value
+                        }
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Ошибка статуса');
+                    }
+
+                    if (data.status === 'pending') {
+                        updateProgress(25, 'Ожидание в очереди...');
+                    } else if (data.status === 'processing') {
+                        const progress = 30 + Math.round((data.progress / 100) * 60);
+                        updateProgress(progress, data.step || 'Обработка...');
+                    } else if (data.status === 'completed') {
+                        updateProgress(100, 'Готово');
+                        renderResult(data);
+                        progressSection.classList.remove('show');
+                        transcribeBtn.innerHTML = 'Начать транскрибацию';
+                        transcribeBtn.disabled = false;
+                        return;
+                    } else if (data.status === 'failed') {
+                        showError('Ошибка обработки: ' + (data.error || 'Неизвестная ошибка'));
+                        return;
+                    }
+
+                    setTimeout(checkStatus, 2000);
+                } catch (error) {
+                    showError('Ошибка проверки статуса: ' + error.message);
+                }
+            };
+
+            checkStatus();
+        }
+
+        function updateProgress(percent, text) {
+            progressFill.style.width = percent + '%';
+            progressText.textContent = text;
+            progressPercent.textContent = `${percent}%`;
+        }
+
+        function showError(message) {
+            errorBanner.textContent = message;
+            errorBanner.classList.add('show');
+            resultStatus.textContent = 'Ошибка';
+            resultSection.classList.add('show');
+            progressSection.classList.remove('show');
+            transcribeBtn.disabled = false;
+            transcribeBtn.innerHTML = 'Начать транскрибацию';
+        }
+
+        newTranscriptionBtn.addEventListener('click', () => {
+            location.reload();
+        });
+
+        downloadBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            if (!taskId) return;
+            try {
+                const response = await fetch(`/result/${taskId}`, {
+                    headers: {
+                        'X-API-Key': apiKeyInput.value
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Не удалось скачать результат');
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `transcription_${taskId}.json`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                showError('Ошибка скачивания: ' + error.message);
+            }
+        });
+
+        document.querySelectorAll('[data-copy-target]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-copy-target');
+                const target = document.getElementById(targetId);
+                if (!target) return;
+                const text = target.textContent || '';
+                navigator.clipboard.writeText(text).then(() => {
+                    button.textContent = 'Скопировано';
+                    setTimeout(() => {
+                        button.textContent = 'Копировать';
+                    }, 1200);
+                }).catch(() => {
+                    button.textContent = 'Ошибка';
+                    setTimeout(() => {
+                        button.textContent = 'Копировать';
+                    }, 1200);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

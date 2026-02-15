@@ -5,6 +5,10 @@ from enum import Enum
 class TranscriptionRequest(BaseModel):
     language: Optional[str] = "auto"
     enable_diarization: bool = False
+    user_id: Optional[str] = None
+    num_speakers: Optional[int] = None
+    min_speakers: Optional[int] = None
+    max_speakers: Optional[int] = None
     chunk_length_s: float = 60.0
 
 class TranscriptionStatus(str, Enum):
@@ -30,6 +34,7 @@ class TranscriptionResult(BaseModel):
     speaker_segments: List[Dict[str, Any]]
     diarization_segments: Optional[List[Dict[str, Any]]] = None
     speaker_text: str
+    speaker_text_raw: List[Dict[str, Any]]
     language: str
     duration: float
     processing_time: float

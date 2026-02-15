@@ -1,9 +1,9 @@
 import os
 import time
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from app.db import save_transcription
+from app.db import update_transcription
 from app.logging_config import get_logger
 from app.task_store import task_store
 from app.config import settings
@@ -29,6 +29,10 @@ def process_transcription(
     task_id: str,
     language: str = "auto",
     enable_diarization: bool = False,
+    user_id: Optional[str] = None,
+    num_speakers: Optional[int] = None,
+    min_speakers: Optional[int] = None,
+    max_speakers: Optional[int] = None,
     chunk_length_s: float = DEFAULT_CHUNK_LENGTH_S,
     max_retries: int = 3,
     retry_delay_s: int = 60,
@@ -116,7 +120,12 @@ def process_transcription(
                     step="Performing speaker diarization",
                 )
                 
-                diarization_segments = diarization_service.diarize(audio_path)
+                diarization_segments = diarization_service.diarize(
+                    audio_path,
+                    num_speakers=num_speakers,
+                    min_speakers=min_speakers,
+                    max_speakers=max_speakers,
+                )
                 speaker_segments = diarization_service.merge_with_transcription(
                     transcription_segments,
                     diarization_segments,
@@ -145,6 +154,7 @@ def process_transcription(
 
             result_data = build_result_record(
                 task_id=task_id,
+                user_id=user_id,
                 transcription_result=transcription_result,
                 speaker_segments=speaker_segments,
                 diarization_segments=diarization_segments,
@@ -152,7 +162,9 @@ def process_transcription(
                 processing_time=processing_time,
             )
 
-            save_transcription(result_data)
+            updated = update_transcription(task_id, result_data)
+            if not updated:
+                raise RuntimeError("Failed to update transcription record")
 
             audio_processor.cleanup_files(*temp_files, file_path)
 

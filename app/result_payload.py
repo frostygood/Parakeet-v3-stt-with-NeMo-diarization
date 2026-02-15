@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.utils import parse_srt
 
@@ -40,6 +40,47 @@ def build_speaker_text(segments: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def build_speaker_text_raw(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not segments:
+        return []
+
+    merged: List[Dict[str, Any]] = []
+    ordered = sorted(segments, key=lambda item: float(item.get('start') or 0.0))
+
+    for seg in ordered:
+        speaker = seg.get('speaker') or 'UNKNOWN'
+        start = float(seg.get('start') or 0.0)
+        end = float(seg.get('end') or start)
+        text = (seg.get('text') or '').strip()
+
+        if not merged:
+            merged.append({
+                'speaker': speaker,
+                'start': start,
+                'end': end,
+                'text': text,
+            })
+            continue
+
+        last = merged[-1]
+        if last.get('speaker') == speaker:
+            last['end'] = max(float(last.get('end') or 0.0), end)
+            if text:
+                if last.get('text'):
+                    last['text'] = f"{last['text']} {text}".strip()
+                else:
+                    last['text'] = text
+        else:
+            merged.append({
+                'speaker': speaker,
+                'start': start,
+                'end': end,
+                'text': text,
+            })
+
+    return merged
+
+
 def build_speaker_srt_segments(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     speaker_srt = []
     for seg in segments:
@@ -56,6 +97,7 @@ def build_speaker_srt_segments(segments: List[Dict[str, Any]]) -> List[Dict[str,
 
 def build_result_record(
     task_id: str,
+    user_id: Optional[str],
     transcription_result: Dict[str, Any],
     speaker_segments: List[Dict[str, Any]],
     diarization_segments: List[Dict[str, Any]],
@@ -69,9 +111,11 @@ def build_result_record(
 
     speaker_srt = build_speaker_srt_segments(speaker_segments)
     speaker_text = build_speaker_text(speaker_segments)
+    speaker_text_raw = build_speaker_text_raw(speaker_segments)
 
     return {
         'task_id': task_id,
+        'user_id': user_id,
         'raw_text': raw_text,
         'words': words,
         'srt': srt_text,
@@ -79,6 +123,7 @@ def build_result_record(
         'speaker_segments': speaker_segments,
         'diarization_segments': diarization_segments,
         'speaker_text': speaker_text,
+        'speaker_text_raw': speaker_text_raw,
         'language': transcription_result.get('language', language),
         'duration': transcription_result.get('duration', 0.0),
         'processing_time': processing_time,
@@ -100,6 +145,7 @@ def build_response_payload(row: Dict[str, Any]) -> Dict[str, Any]:
         'speaker_segments': row.get('speaker_segments') or [],
         'diarization_segments': row.get('diarization_segments') or [],
         'speaker_text': row.get('speaker_text') or "",
+        'speaker_text_raw': row.get('speaker_text_raw') or [],
         'processing_time': row.get('processing_time'),
         'duration': row.get('duration'),
         'language': row.get('language')

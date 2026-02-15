@@ -1,6 +1,7 @@
 import uuid
 import aiofiles
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -9,7 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.logging_config import setup_logging, get_logger
-from app.db import fetch_transcription
+from app.db import (
+    fetch_transcription,
+    create_transcription_stub,
+    delete_transcription,
+    fetch_transcriptions,
+    count_transcriptions,
+)
 from app.result_payload import build_response_payload
 from app.task_queue import TaskQueue
 from app.utils import sanitize_filename, validate_file_size, validate_file_type
@@ -43,6 +50,8 @@ async def api_key_middleware(request: Request, call_next):
     if (
         path == "/"
         or path == "/health"
+        or path == "/diarization"
+        or path == "/history"
         or path.startswith("/static")
         or path in {"/docs", "/openapi.json", "/redoc"}
     ):
@@ -86,14 +95,35 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    """Serve the HTML interface."""
+async def _serve_diarization_page() -> str:
     try:
-        with open("static/index.html", "r", encoding="utf-8") as f:
+        with open("static/diarization.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        logger.error("index.html not found")
+        logger.error("diarization.html not found")
+        raise HTTPException(status_code=404, detail="Interface not found")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    """Serve the primary HTML interface."""
+    return await _serve_diarization_page()
+
+
+@app.get("/diarization", response_class=HTMLResponse)
+async def diarization_page():
+    """Serve the diarization HTML interface."""
+    return await _serve_diarization_page()
+
+
+@app.get("/history", response_class=HTMLResponse)
+async def history_page():
+    """Serve the transcription history HTML interface."""
+    try:
+        with open("static/history.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.error("history.html not found")
         raise HTTPException(status_code=404, detail="Interface not found")
 
 
@@ -117,6 +147,10 @@ async def transcribe(
     request: Request,
     file: UploadFile = File(...),
     enable_diarization: bool = Form(False),
+    user_id: Optional[str] = Form(None),
+    num_speakers: Optional[int] = Form(None),
+    min_speakers: Optional[int] = Form(None),
+    max_speakers: Optional[int] = Form(None),
 ):
     """
     Upload file and start transcription task.
@@ -167,16 +201,23 @@ async def transcribe(
         task_store.create(task_id)
         task_store.update(task_id, status="pending", progress=0, step="Queued")
 
+        create_transcription_stub(task_id=task_id, user_id=user_id)
+
         enqueued = task_queue.enqueue(
             process_transcription,
             file_path=str(file_path),
             task_id=task_id,
             language="auto",
             enable_diarization=enable_diarization,
+            user_id=user_id,
+            num_speakers=num_speakers,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
         )
         if not enqueued:
             if file_path.exists():
                 file_path.unlink()
+            delete_transcription(task_id)
             task_store.set_error(task_id, "Queue is full")
             raise HTTPException(status_code=429, detail="Queue is full")
         
@@ -233,7 +274,7 @@ async def get_status(task_id: str):
                 }
 
         row = fetch_transcription(task_id)
-        if not row:
+        if not row or row.get("processing_time") is None:
             if task_state:
                 raise HTTPException(status_code=404, detail="Result not found")
             raise HTTPException(status_code=404, detail="Task not found")
@@ -269,7 +310,7 @@ async def get_result(task_id: str):
             raise HTTPException(status_code=500, detail=task_state.error or "Task failed")
         
         row = fetch_transcription(task_id)
-        if not row:
+        if not row or row.get("processing_time") is None:
             raise HTTPException(status_code=404, detail="Result not found")
 
         payload = build_response_payload(row)
@@ -287,6 +328,35 @@ async def get_result(task_id: str):
     except Exception as e:
         logger.error(f"Error getting result for task {task_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get result")
+
+
+@app.get("/transcriptions")
+async def list_transcriptions(
+    page: int = 1,
+    task_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
+    if page < 1:
+        raise HTTPException(status_code=400, detail="Invalid page")
+
+    page_size = 50
+    total = count_transcriptions(task_id_query=task_id, user_id_query=user_id)
+    total_pages = (total + page_size - 1) // page_size
+
+    items = fetch_transcriptions(
+        page=page,
+        page_size=page_size,
+        task_id_query=task_id,
+        user_id_query=user_id,
+    )
+
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+    }
 
 
 if __name__ == "__main__":
