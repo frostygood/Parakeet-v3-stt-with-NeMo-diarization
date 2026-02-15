@@ -63,20 +63,9 @@ class DiarizationService:
         """
         try:
             logger.debug(f"Starting diarization for: {audio_path}")
-            
-            pipeline_kwargs: Dict[str, Any] = {}
-            if num_speakers is not None:
-                pipeline_kwargs["num_speakers"] = num_speakers
-            else:
-                if min_speakers is not None:
-                    pipeline_kwargs["min_speakers"] = min_speakers
-                if max_speakers is not None:
-                    pipeline_kwargs["max_speakers"] = max_speakers
 
-            if pipeline_kwargs:
-                diarization = self._pipeline(audio_path, **pipeline_kwargs)
-            else:
-                diarization = self._pipeline(audio_path)
+            pipeline_kwargs = self._build_pipeline_kwargs(num_speakers, min_speakers, max_speakers)
+            diarization = self._pipeline(audio_path, **pipeline_kwargs) if pipeline_kwargs else self._pipeline(audio_path)
             
             speakers = []
             for turn, _, speaker in diarization.itertracks(yield_label=True):
@@ -93,6 +82,22 @@ class DiarizationService:
         except Exception as e:
             logger.error(f"Diarization error: {e}", exc_info=True)
             raise
+
+    @staticmethod
+    def _build_pipeline_kwargs(
+        num_speakers: Optional[int],
+        min_speakers: Optional[int],
+        max_speakers: Optional[int],
+    ) -> Dict[str, Any]:
+        if num_speakers is not None:
+            return {"num_speakers": num_speakers}
+
+        pipeline_kwargs: Dict[str, Any] = {}
+        if min_speakers is not None:
+            pipeline_kwargs["min_speakers"] = min_speakers
+        if max_speakers is not None:
+            pipeline_kwargs["max_speakers"] = max_speakers
+        return pipeline_kwargs
     
     def merge_with_transcription(
         self,

@@ -27,6 +27,12 @@ def get_connection() -> psycopg.Connection:
     return psycopg.connect(_get_database_url())
 
 
+def _json_or_none(value: Any) -> Optional[Json]:
+    if value is None:
+        return None
+    return Json(value)
+
+
 def save_transcription(data: Dict[str, Any]) -> None:
     query = """
         INSERT INTO public.parakeet (
@@ -62,16 +68,16 @@ def save_transcription(data: Dict[str, Any]) -> None:
                     task_id,
                     data.get("user_id"),
                     data.get("raw_text"),
-                    Json(words) if words is not None else None,
+                    _json_or_none(words),
                     data.get("srt"),
-                    Json(speaker_segments) if speaker_segments is not None else None,
-                    Json(diarization_segments) if diarization_segments is not None else None,
+                    _json_or_none(speaker_segments),
+                    _json_or_none(diarization_segments),
                     data.get("speaker_text"),
                     data.get("language"),
                     data.get("duration"),
                     data.get("processing_time"),
-                    Json(speaker_srt) if speaker_srt is not None else None,
-                    Json(speaker_text_raw) if speaker_text_raw is not None else None,
+                    _json_or_none(speaker_srt),
+                    _json_or_none(speaker_text_raw),
                 ),
             )
         conn.commit()
@@ -140,16 +146,16 @@ def update_transcription(task_id: str, data: Dict[str, Any]) -> bool:
                 query,
                 (
                     data.get("raw_text"),
-                    Json(words) if words is not None else None,
+                    _json_or_none(words),
                     data.get("srt"),
-                    Json(speaker_segments) if speaker_segments is not None else None,
-                    Json(diarization_segments) if diarization_segments is not None else None,
+                    _json_or_none(speaker_segments),
+                    _json_or_none(diarization_segments),
                     data.get("speaker_text"),
                     data.get("language"),
                     data.get("duration"),
                     data.get("processing_time"),
-                    Json(speaker_srt) if speaker_srt is not None else None,
-                    Json(speaker_text_raw) if speaker_text_raw is not None else None,
+                    _json_or_none(speaker_srt),
+                    _json_or_none(speaker_text_raw),
                     task_uuid,
                 ),
             )

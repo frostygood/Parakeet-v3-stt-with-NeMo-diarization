@@ -1,4 +1,3 @@
-import os
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -15,13 +14,77 @@ from app.constants import (
     PROGRESS_TRANSCRIBING,
     PROGRESS_DIARIZATION,
     PROGRESS_SAVING,
-    DEFAULT_CHUNK_LENGTH_S
+    DEFAULT_CHUNK_LENGTH_S,
+    ALLOWED_VIDEO_EXTENSIONS,
 )
 from services.transcription import transcription_service
 from services.diarization import diarization_service
 from services.audio_processor import audio_processor
 
 logger = get_logger(__name__)
+
+
+def _update_task_progress(task_id: str, progress: int, step: str) -> None:
+    task_store.update(
+        task_id,
+        status="processing",
+        progress=progress,
+        step=step,
+    )
+
+
+def _prepare_audio_file(file_path: str, task_id: str, temp_files: List[str]) -> str:
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    file_ext = path.suffix.lower()
+    audio_path = file_path
+
+    if file_ext in ALLOWED_VIDEO_EXTENSIONS:
+        _update_task_progress(task_id, PROGRESS_AUDIO_EXTRACTED, "Extracting audio from video")
+        audio_path = get_audio_output_path(file_path, suffix="_audio", ext=".wav")
+        audio_processor.extract_audio(file_path, audio_path)
+        temp_files.append(audio_path)
+        logger.info("Audio extracted from video: %s", audio_path)
+        return audio_path
+
+    if file_ext != ".wav":
+        _update_task_progress(task_id, PROGRESS_AUDIO_EXTRACTED, "Converting audio format")
+        audio_path = get_audio_output_path(file_path)
+        audio_processor.convert_to_wav(file_path, audio_path)
+        temp_files.append(audio_path)
+        logger.info("Audio converted to WAV: %s", audio_path)
+
+    return audio_path
+
+
+def _run_diarization(
+    audio_path: str,
+    transcription_segments: List[Dict[str, Any]],
+    task_id: str,
+    enable_diarization: bool,
+    num_speakers: Optional[int],
+    min_speakers: Optional[int],
+    max_speakers: Optional[int],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    if not enable_diarization:
+        _update_task_progress(task_id, PROGRESS_DIARIZATION, "Skipping speaker diarization")
+        return [], []
+
+    _update_task_progress(task_id, PROGRESS_DIARIZATION, "Performing speaker diarization")
+    diarization_segments = diarization_service.diarize(
+        audio_path,
+        num_speakers=num_speakers,
+        min_speakers=min_speakers,
+        max_speakers=max_speakers,
+    )
+    speaker_segments = diarization_service.merge_with_transcription(
+        transcription_segments,
+        diarization_segments,
+    )
+    logger.info("Diarization completed: %s speaker segments", len(diarization_segments))
+    return diarization_segments, speaker_segments
 
 
 def process_transcription(
@@ -57,48 +120,9 @@ def process_transcription(
         temp_files: List[str] = []
         try:
             logger.info(f"Starting transcription task {task_id} for file: {file_path}")
-            task_store.update(
-                task_id,
-                status="processing",
-                progress=PROGRESS_INIT,
-                step="Preparing file",
-            )
-            
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"File not found: {file_path}")
-            
-            file_ext = Path(file_path).suffix.lower()
-            audio_path = file_path
-            
-            if file_ext in ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv']:
-                task_store.update(
-                    task_id,
-                    status="processing",
-                    progress=PROGRESS_AUDIO_EXTRACTED,
-                    step="Extracting audio from video",
-                )
-                audio_path = get_audio_output_path(file_path, suffix='_audio', ext='.wav')
-                audio_processor.extract_audio(file_path, audio_path)
-                temp_files.append(audio_path)
-                logger.info(f"Audio extracted from video: {audio_path}")
-            elif file_ext != '.wav':
-                task_store.update(
-                    task_id,
-                    status="processing",
-                    progress=PROGRESS_AUDIO_EXTRACTED,
-                    step="Converting audio format",
-                )
-                audio_path = get_audio_output_path(file_path)
-                audio_processor.convert_to_wav(file_path, audio_path)
-                temp_files.append(audio_path)
-                logger.info(f"Audio converted to WAV: {audio_path}")
-            
-            task_store.update(
-                task_id,
-                status="processing",
-                progress=PROGRESS_TRANSCRIBING,
-                step="Transcribing audio",
-            )
+            _update_task_progress(task_id, PROGRESS_INIT, "Preparing file")
+            audio_path = _prepare_audio_file(file_path, task_id, temp_files)
+            _update_task_progress(task_id, PROGRESS_TRANSCRIBING, "Transcribing audio")
             
             transcription_result = transcription_service.transcribe(
                 audio_path=audio_path,
@@ -111,44 +135,18 @@ def process_transcription(
                 "Transcription completed: %s segments",
                 len(transcription_segments)
             )
-            
-            if enable_diarization:
-                task_store.update(
-                    task_id,
-                    status="processing",
-                    progress=PROGRESS_DIARIZATION,
-                    step="Performing speaker diarization",
-                )
-                
-                diarization_segments = diarization_service.diarize(
-                    audio_path,
-                    num_speakers=num_speakers,
-                    min_speakers=min_speakers,
-                    max_speakers=max_speakers,
-                )
-                speaker_segments = diarization_service.merge_with_transcription(
-                    transcription_segments,
-                    diarization_segments,
-                )
-                logger.info(
-                    f"Diarization completed: {len(diarization_segments)} speaker segments"
-                )
-            else:
-                task_store.update(
-                    task_id,
-                    status="processing",
-                    progress=PROGRESS_DIARIZATION,
-                    step="Skipping speaker diarization",
-                )
-                diarization_segments = []
-                speaker_segments = []
-            
-            task_store.update(
-                task_id,
-                status="processing",
-                progress=PROGRESS_SAVING,
-                step="Saving results",
+
+            diarization_segments, speaker_segments = _run_diarization(
+                audio_path=audio_path,
+                transcription_segments=transcription_segments,
+                task_id=task_id,
+                enable_diarization=enable_diarization,
+                num_speakers=num_speakers,
+                min_speakers=min_speakers,
+                max_speakers=max_speakers,
             )
+
+            _update_task_progress(task_id, PROGRESS_SAVING, "Saving results")
 
             processing_time = time.time() - start_time
 

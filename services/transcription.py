@@ -101,11 +101,9 @@ class ParakeetTranscriptionService:
                 chunk_length_s = max(chunk_length_s, 1.0)
                 chunk_length_ms = int(chunk_length_s * 1000)
                 if duration <= chunk_length_s:
-                    result = self._model.recognize(audio_path)
-                    chunk_text = result.text if hasattr(result, "text") else str(result)
-                    chunk_text = self._clean_text(chunk_text)
+                    chunk_text, chunk_words = self._recognize_chunk(audio_path, duration)
                     texts.append(chunk_text)
-                    words.extend(self._extract_words(result, duration, chunk_text))
+                    words.extend(chunk_words)
                 else:
                     logger.info(
                         "Audio is %.2fs, chunking into %.2fs pieces",
@@ -122,20 +120,11 @@ class ParakeetTranscriptionService:
                         temp_paths.append(chunk_path)
                         chunk.export(chunk_path, format="wav", codec="pcm_s16le")
 
-                        result = self._model.recognize(chunk_path)
-                        chunk_text = result.text if hasattr(result, "text") else str(result)
-                        chunk_text = self._clean_text(chunk_text)
+                        chunk_text, chunk_words = self._recognize_chunk(chunk_path, chunk_duration)
                         texts.append(chunk_text)
 
-                        chunk_words = self._extract_words(
-                            result,
-                            chunk_duration,
-                            chunk_text,
-                        )
                         offset = start_ms / 1000.0
-                        for word in chunk_words:
-                            word['start'] += offset
-                            word['end'] += offset
+                        self._offset_words(chunk_words, offset)
                         words.extend(chunk_words)
                         chunk_index += 1
             finally:
@@ -176,6 +165,25 @@ class ParakeetTranscriptionService:
         cleaned = text.replace("\u2581", " ")
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         return cleaned
+
+    def _recognize_chunk(
+        self,
+        audio_path: str,
+        duration: float,
+    ) -> tuple[str, List[Dict[str, Any]]]:
+        result = self._model.recognize(audio_path)
+        chunk_text = result.text if hasattr(result, "text") else str(result)
+        chunk_text = self._clean_text(chunk_text)
+        chunk_words = self._extract_words(result, duration, chunk_text)
+        return chunk_text, chunk_words
+
+    @staticmethod
+    def _offset_words(words: List[Dict[str, Any]], offset: float) -> None:
+        if not offset:
+            return
+        for word in words:
+            word['start'] += offset
+            word['end'] += offset
 
     def _extract_words(
         self,

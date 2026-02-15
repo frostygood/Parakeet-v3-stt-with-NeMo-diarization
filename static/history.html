@@ -3,8 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STT API - История транскрибаций</title>
+    <title>STT Studio — История транскрибаций</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #f6f1e8;
+            --bg-alt: #e8f3f1;
+            --card: #ffffff;
+            --text: #1f2933;
+            --muted: #5f6b7a;
+            --accent: #0f766e;
+            --accent-dark: #0b5f59;
+            --accent-warm: #e76f51;
+            --accent-soft: #f2d5c4;
+            --border: #e6e2d8;
+            --shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+            --radius: 18px;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,151 +30,264 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: "Manrope", sans-serif;
+            color: var(--text);
+            background: radial-gradient(circle at 20% 10%, #f8efe2 0%, rgba(248, 239, 226, 0) 55%),
+                radial-gradient(circle at 80% 0%, #e1f3f0 0%, rgba(225, 243, 240, 0) 50%),
+                linear-gradient(160deg, var(--bg) 0%, var(--bg-alt) 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 28px 24px 40px;
+            position: relative;
+            overflow-x: hidden;
         }
 
-        .container {
-            max-width: 1200px;
+        body::before,
+        body::after {
+            content: "";
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            opacity: 0.4;
+            z-index: 0;
+        }
+
+        body::before {
+            background: radial-gradient(circle, rgba(231, 111, 81, 0.35), transparent 70%);
+            top: -80px;
+            right: -80px;
+        }
+
+        body::after {
+            background: radial-gradient(circle, rgba(15, 118, 110, 0.25), transparent 70%);
+            bottom: -120px;
+            left: -80px;
+        }
+
+        .page {
+            max-width: 1250px;
             margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            padding: 32px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 1;
         }
 
-        .header {
+        .topbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 16px;
-            margin-bottom: 20px;
+            margin-bottom: 28px;
             flex-wrap: wrap;
         }
 
-        h1 {
-            color: #333;
-            font-size: 2.2em;
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
         }
 
-        .subtitle {
-            color: #666;
-            margin-top: 6px;
+        .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--accent) 0%, #17a398 100%);
+            display: grid;
+            place-items: center;
+            color: white;
+            font-weight: 700;
+            font-family: "Sora", sans-serif;
+            box-shadow: 0 12px 28px rgba(15, 118, 110, 0.3);
         }
 
-        .header-links {
+        .brand h1 {
+            font-family: "Sora", sans-serif;
+            font-size: 1.9rem;
+            font-weight: 600;
+        }
+
+        .brand p {
+            color: var(--muted);
+            margin-top: 4px;
+            font-size: 0.95rem;
+        }
+
+        .nav {
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
         }
 
-        .header-link {
-            color: #667eea;
+        .nav a {
             text-decoration: none;
+            color: var(--accent);
             font-weight: 600;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 118, 110, 0.2);
+            background: rgba(255, 255, 255, 0.8);
+            transition: all 0.2s ease;
         }
 
-        .header-link:hover {
-            text-decoration: underline;
+        .nav a:hover {
+            background: rgba(15, 118, 110, 0.12);
+            border-color: rgba(15, 118, 110, 0.4);
         }
 
-        .settings {
-            background: #f8f9fa;
-            padding: 22px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-        }
-
-        .settings h3 {
-            margin-bottom: 18px;
-            color: #333;
-        }
-
-        .setting-row {
+        .layout {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stack {
+            display: grid;
+            gap: 18px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 20px 22px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(230, 226, 216, 0.7);
+            animation: floatUp 0.6s ease both;
+        }
+
+        @keyframes floatUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .card-header h2,
+        .card-header h3 {
+            font-family: "Sora", sans-serif;
+            font-size: 1.1rem;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            color: var(--accent-dark);
+            background: rgba(15, 118, 110, 0.12);
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
+
+        .fields {
+            display: grid;
             gap: 12px;
-            margin-bottom: 12px;
         }
 
-        .setting-group label {
+        .field label {
             display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--muted);
             margin-bottom: 6px;
-            color: #555;
-            font-weight: 500;
         }
 
-        .setting-group input {
+        .field input {
             width: 100%;
             padding: 10px 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s;
+            border-radius: 12px;
+            border: 1px solid rgba(230, 226, 216, 0.9);
+            font-size: 0.95rem;
+            transition: border 0.2s ease;
         }
 
-        .setting-group input:focus {
+        .field input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: rgba(15, 118, 110, 0.6);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
         }
 
         .actions {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             flex-wrap: wrap;
             margin-top: 6px;
         }
 
         .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
             border: none;
-            padding: 10px 24px;
-            font-size: 1em;
-            border-radius: 8px;
+            border-radius: 12px;
+            padding: 10px 18px;
+            font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        .btn.primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #17a398 100%);
+            color: white;
+            box-shadow: 0 12px 24px rgba(15, 118, 110, 0.25);
         }
 
-        .btn.secondary {
-            background: #e0e7ff;
-            color: #3f51b5;
+        .btn.ghost {
+            background: rgba(15, 118, 110, 0.08);
+            color: var(--accent);
         }
 
         .btn:disabled {
-            background: #ccc;
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
 
         .table-wrap {
-            border: 1px solid #e0e0e0;
             border-radius: 12px;
-            overflow: hidden;
+            overflow: auto;
+            border: 1px solid rgba(230, 226, 216, 0.6);
+            background: white;
+            max-height: 520px;
+        }
+
+        .table-wrap.tall {
+            max-height: 340px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            font-size: 13px;
         }
 
-        th, td {
-            padding: 12px 14px;
+        th,
+        td {
+            padding: 10px 12px;
             border-bottom: 1px solid #eee;
             text-align: left;
         }
 
         th {
-            background: #f5f6ff;
-            font-weight: 600;
+            background: #f5f4ef;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
 
         tbody tr {
@@ -165,19 +296,16 @@
         }
 
         tbody tr:hover {
-            background: #f9f9ff;
-        }
-
-        .status {
-            margin-top: 12px;
-            color: #666;
+            background: #f9f7f2;
         }
 
         .empty-state {
-            padding: 18px;
-            text-align: center;
+            background: #f1efea;
             color: #777;
-            background: #fafafa;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            margin-top: 12px;
         }
 
         .pagination {
@@ -190,13 +318,117 @@
         }
 
         .page-info {
-            color: #555;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .status {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin: 14px 0 18px;
+        }
+
+        .summary-item {
+            background: #f9f7f2;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(230, 226, 216, 0.6);
+        }
+
+        .summary-item span {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        .summary-item strong {
+            font-size: 1rem;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .modal-results {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .result-block {
+            background: #faf9f6;
+            border-radius: 14px;
+            padding: 14px;
+            border: 1px solid rgba(230, 226, 216, 0.6);
+        }
+
+        .result-block.tall-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .result-block.tall-text .text-box {
+            flex: 1;
+        }
+
+        .result-block.full-span {
+            grid-column: 1 / -1;
+        }
+
+        .block-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .block-header h4 {
+            font-family: "Sora", sans-serif;
+            font-size: 0.95rem;
+        }
+
+        .icon-btn {
+            border: none;
+            background: rgba(15, 118, 110, 0.08);
+            color: var(--accent);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        .text-box {
+            background: white;
+            border-radius: 10px;
+            padding: 10px;
+            max-height: 240px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .speaker-text-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .speaker-text-table td:last-child {
+            word-break: break-word;
         }
 
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.45);
+            background: rgba(15, 23, 42, 0.4);
             display: none;
             align-items: center;
             justify-content: center;
@@ -210,18 +442,19 @@
 
         .modal {
             background: white;
-            border-radius: 16px;
-            max-width: 1100px;
+            border-radius: 20px;
+            max-width: 1200px;
             width: 100%;
             max-height: 90vh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            box-shadow: var(--shadow);
         }
 
         .modal-header {
             padding: 18px 22px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid rgba(230, 226, 216, 0.8);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -229,14 +462,20 @@
         }
 
         .modal-title {
-            font-size: 1.2em;
-            color: #333;
+            font-size: 1.2rem;
+            font-family: "Sora", sans-serif;
+        }
+
+        .modal-status {
+            color: var(--muted);
+            font-size: 0.9rem;
         }
 
         .modal-close {
-            background: #f5f5f5;
+            background: rgba(15, 118, 110, 0.08);
+            color: var(--accent);
             border: none;
-            border-radius: 6px;
+            border-radius: 10px;
             padding: 6px 12px;
             cursor: pointer;
         }
@@ -246,156 +485,100 @@
             overflow: auto;
         }
 
-        .detail-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 16px;
-        }
-
-        .detail-block.full-span {
-            grid-column: 1 / -1;
-        }
-
-        .detail-block {
-            background: #fafafa;
-            border-radius: 10px;
-            padding: 14px;
-            border: 1px solid #eee;
-        }
-
-        .detail-block h4 {
-            margin-bottom: 10px;
-            color: #333;
-        }
-
-        .detail-text {
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            max-height: 240px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        .detail-table-wrap {
-            max-height: 240px;
-            overflow: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            background: white;
-        }
-
-        .detail-table-wrap.tall {
-            max-height: 340px;
-        }
-
-        .speaker-text-table {
-            table-layout: fixed;
-            width: 100%;
-        }
-
-        .speaker-text-table td:last-child {
-            word-break: break-word;
-        }
-
-        .detail-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        .detail-table th,
-        .detail-table td {
-            padding: 8px 10px;
-            border-bottom: 1px solid #eee;
-            text-align: left;
-        }
-
-        .detail-table th {
-            background: #f5f6ff;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-
-        .modal-status {
-            color: #666;
-            font-size: 0.95em;
-        }
-
         @media (max-width: 720px) {
             .modal {
                 max-height: 95vh;
             }
-            th, td {
-                padding: 10px;
+            th,
+            td {
+                padding: 8px 10px;
+            }
+            .modal-results {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1>STT API</h1>
-                <p class="subtitle">История транскрибаций</p>
-            </div>
-            <div class="header-links">
-                <a class="header-link" href="/">Главная</a>
-            </div>
-        </div>
-
-        <div class="settings">
-            <h3>Поиск</h3>
-            <div class="setting-row">
-                <div class="setting-group">
-                    <label for="apiKey">API ключ</label>
-                    <input type="password" id="apiKey" placeholder="Введите API ключ">
-                </div>
-                <div class="setting-group">
-                    <label for="taskIdQuery">task_id</label>
-                    <input type="text" id="taskIdQuery" placeholder="Поиск по task_id">
-                </div>
-                <div class="setting-group">
-                    <label for="userIdQuery">user_id</label>
-                    <input type="text" id="userIdQuery" placeholder="Поиск по user_id">
+    <div class="page">
+        <header class="topbar">
+            <div class="brand">
+                <div class="logo">ST</div>
+                <div>
+                    <h1>STT Studio</h1>
+                    <p>История транскрибаций и доступ к результатам.</p>
                 </div>
             </div>
-            <div class="actions">
-                <button class="btn" id="searchBtn">Искать</button>
-                <button class="btn secondary" id="resetBtn">Сбросить</button>
-            </div>
-        </div>
+            <nav class="nav">
+                <a href="/">Главная</a>
+            </nav>
+        </header>
 
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Дата</th>
-                        <th>task_id</th>
-                        <th>user_id</th>
-                        <th>Длительность (с)</th>
-                        <th>Время обработки (с)</th>
-                        <th>Язык</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-            <div class="empty-state" id="emptyState">Нет записей для отображения.</div>
-        </div>
+        <main class="layout">
+            <section class="stack">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Поиск</h2>
+                        <span class="badge">History</span>
+                    </div>
+                    <div class="fields">
+                        <div class="field">
+                            <label for="apiKey">API ключ</label>
+                            <input type="password" id="apiKey" placeholder="Введите API ключ">
+                        </div>
+                        <div class="grid-2">
+                            <div class="field">
+                                <label for="taskIdQuery">task_id</label>
+                                <input type="text" id="taskIdQuery" placeholder="Поиск по task_id">
+                            </div>
+                            <div class="field">
+                                <label for="userIdQuery">user_id</label>
+                                <input type="text" id="userIdQuery" placeholder="Поиск по user_id">
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn primary" id="searchBtn">Искать</button>
+                            <button class="btn ghost" id="resetBtn">Сбросить</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-        <div class="pagination">
-            <div class="page-info" id="pageInfo">Страница 1 из 1</div>
-            <div class="actions">
-                <button class="btn secondary" id="prevBtn">Назад</button>
-                <button class="btn" id="nextBtn">Вперёд</button>
-            </div>
-        </div>
+            <section class="stack">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>История транскрибаций</h2>
+                        <span class="badge" id="listBadge">0 записей</span>
+                    </div>
+                    <div class="table-wrap" id="listTableWrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>task_id</th>
+                                    <th>user_id</th>
+                                    <th>Длительность (с)</th>
+                                    <th>Время обработки (с)</th>
+                                    <th>Язык</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="empty-state" id="emptyState">Нет записей для отображения.</div>
 
-        <div class="status" id="statusText"></div>
+                    <div class="pagination">
+                        <div class="page-info" id="pageInfo">Страница 1 из 1</div>
+                        <div class="actions">
+                            <button class="btn ghost" id="prevBtn">Назад</button>
+                            <button class="btn primary" id="nextBtn">Вперёд</button>
+                        </div>
+                    </div>
+
+                    <div class="status" id="statusText"></div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <div class="modal-overlay" id="modalOverlay">
@@ -423,6 +606,7 @@
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const statusText = document.getElementById('statusText');
+        const listBadge = document.getElementById('listBadge');
         const modalOverlay = document.getElementById('modalOverlay');
         const modalClose = document.getElementById('modalClose');
         const modalTitle = document.getElementById('modalTitle');
@@ -456,6 +640,27 @@
             return num.toFixed(2);
         }
 
+        function formatTimestamp(seconds) {
+            const totalMillis = Math.max(0, Math.floor(seconds * 1000));
+            const hours = Math.floor(totalMillis / 3600000);
+            const minutes = Math.floor((totalMillis % 3600000) / 60000);
+            const secs = Math.floor((totalMillis % 60000) / 1000);
+            const millis = totalMillis % 1000;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
+        }
+
+        function formatSrt(segments) {
+            if (!Array.isArray(segments)) return '';
+            return segments
+                .map((seg, index) => {
+                    const start = formatTimestamp(seg.start || 0);
+                    const end = formatTimestamp(seg.end || 0);
+                    const text = seg.text || '';
+                    return `${index + 1}\n${start} --> ${end}\n${text}`;
+                })
+                .join('\n\n');
+        }
+
         function buildQueryParams() {
             const params = new URLSearchParams();
             params.set('page', String(currentPage));
@@ -473,6 +678,21 @@
             pageInfo.textContent = `Страница ${currentPage} из ${totalDisplay}`;
             prevBtn.disabled = currentPage <= 1;
             nextBtn.disabled = totalPages === 0 || currentPage >= totalPages;
+        }
+
+        function renderTableRows(body, rows) {
+            body.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            rows.forEach((row) => {
+                const tr = document.createElement('tr');
+                row.forEach((value) => {
+                    const td = document.createElement('td');
+                    td.textContent = value;
+                    tr.appendChild(td);
+                });
+                fragment.appendChild(tr);
+            });
+            body.appendChild(fragment);
         }
 
         function renderTable(items) {
@@ -514,6 +734,7 @@
                 totalPages = data.total_pages || 0;
                 renderTable(data.items || []);
                 updatePagination();
+                listBadge.textContent = `${data.total || 0} записей`;
                 statusText.textContent = data.total
                     ? `Найдено записей: ${data.total}`
                     : 'Нет записей по запросу.';
@@ -522,6 +743,7 @@
                 renderTable([]);
                 totalPages = 0;
                 updatePagination();
+                listBadge.textContent = '0 записей';
             }
         }
 
@@ -570,191 +792,225 @@
             }
         });
 
-        function formatTimestamp(seconds) {
-            const totalMillis = Math.max(0, Math.floor(seconds * 1000));
-            const hours = Math.floor(totalMillis / 3600000);
-            const minutes = Math.floor((totalMillis % 3600000) / 60000);
-            const secs = Math.floor((totalMillis % 60000) / 1000);
-            const millis = totalMillis % 1000;
-            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
-        }
+        function buildSummary(data) {
+            const duration = data.duration ?? null;
+            const processing = data.processing_time ?? null;
+            const language = data.language || 'auto';
+            const speakers = new Set((data.diarization_segments || []).map((seg) => seg.speaker || 'UNKNOWN')).size;
 
-        function formatSrt(segments) {
-            if (!Array.isArray(segments)) return '';
-            return segments
-                .map((seg, index) => {
-                    const start = formatTimestamp(seg.start || 0);
-                    const end = formatTimestamp(seg.end || 0);
-                    const text = seg.text || '';
-                    return `${index + 1}\n${start} --> ${end}\n${text}`;
-                })
-                .join('\n\n');
-        }
+            const summary = document.createElement('div');
+            summary.className = 'summary';
 
-        function renderTableRows(body, rows) {
-            body.innerHTML = '';
-            const fragment = document.createDocumentFragment();
-            rows.forEach((row) => {
-                const tr = document.createElement('tr');
-                row.forEach((value) => {
-                    const td = document.createElement('td');
-                    td.textContent = value;
-                    tr.appendChild(td);
-                });
-                fragment.appendChild(tr);
+            const items = [
+                { label: 'Длительность', value: duration ? `${Number(duration).toFixed(2)}s` : '—' },
+                { label: 'Время обработки', value: processing ? `${Number(processing).toFixed(2)}s` : '—' },
+                { label: 'Язык', value: language || '—' },
+                { label: 'Спикеров', value: speakers ? `${speakers}` : '—' }
+            ];
+
+            items.forEach((item) => {
+                const block = document.createElement('div');
+                block.className = 'summary-item';
+                const label = document.createElement('span');
+                label.textContent = item.label;
+                const value = document.createElement('strong');
+                value.textContent = item.value;
+                block.appendChild(label);
+                block.appendChild(value);
+                summary.appendChild(block);
             });
-            body.appendChild(fragment);
+
+            return summary;
+        }
+
+        function createCopyButton(targetId) {
+            const button = document.createElement('button');
+            button.className = 'icon-btn';
+            button.dataset.copyTarget = targetId;
+            button.textContent = 'Копировать';
+            return button;
+        }
+
+        function buildTextBlock(title, targetId, text, emptyText, extraClass = '') {
+            const block = document.createElement('div');
+            block.className = `result-block${extraClass ? ` ${extraClass}` : ''}`;
+
+            const header = document.createElement('div');
+            header.className = 'block-header';
+            const heading = document.createElement('h4');
+            heading.textContent = title;
+            header.appendChild(heading);
+            if (targetId) {
+                header.appendChild(createCopyButton(targetId));
+            }
+
+            const box = document.createElement('div');
+            box.className = 'text-box';
+            if (targetId) {
+                box.id = targetId;
+            }
+            box.textContent = text || emptyText;
+
+            block.appendChild(header);
+            block.appendChild(box);
+            return block;
+        }
+
+        function buildTableBlock({
+            title,
+            columns,
+            rows,
+            fullSpan = false,
+            tall = false,
+            colgroup = null,
+            tableClass = '',
+            emptyText = 'Нет данных.'
+        }) {
+            const block = document.createElement('div');
+            block.className = `result-block${fullSpan ? ' full-span' : ''}`;
+
+            const header = document.createElement('div');
+            header.className = 'block-header';
+            const heading = document.createElement('h4');
+            heading.textContent = title;
+            header.appendChild(heading);
+
+            const wrap = document.createElement('div');
+            wrap.className = `table-wrap${tall ? ' tall' : ''}`;
+            const table = document.createElement('table');
+            if (tableClass) {
+                table.className = tableClass;
+            }
+
+            if (Array.isArray(colgroup)) {
+                const group = document.createElement('colgroup');
+                colgroup.forEach((width) => {
+                    const col = document.createElement('col');
+                    if (width) {
+                        col.style.width = width;
+                    }
+                    group.appendChild(col);
+                });
+                table.appendChild(group);
+            }
+
+            const thead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            columns.forEach((col) => {
+                const th = document.createElement('th');
+                th.textContent = col;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            table.appendChild(tbody);
+            wrap.appendChild(table);
+
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.textContent = emptyText;
+
+            if (!rows || rows.length === 0) {
+                wrap.style.display = 'none';
+                empty.style.display = 'block';
+            } else {
+                renderTableRows(tbody, rows);
+                wrap.style.display = 'block';
+                empty.style.display = 'none';
+            }
+
+            block.appendChild(header);
+            block.appendChild(wrap);
+            block.appendChild(empty);
+            return block;
         }
 
         function buildDetailContent(data) {
             const rawText = data.raw_text || data.text || '';
             const diarizationSegments = Array.isArray(data.diarization_segments) ? data.diarization_segments : [];
-            const speakerSrt = formatSrt(data.speaker_srt || []);
             const speakerTextRawSegments = Array.isArray(data.speaker_text_raw) ? data.speaker_text_raw : [];
+            const speakerSrt = formatSrt(data.speaker_srt || []);
             const words = Array.isArray(data.words) ? data.words : [];
 
             const wrapper = document.createElement('div');
-            wrapper.className = 'detail-grid';
+            wrapper.appendChild(buildSummary(data));
 
-            const rawBlock = document.createElement('div');
-            rawBlock.className = 'detail-block';
-            rawBlock.innerHTML = `<h4>Чистая транскрипция</h4><div class="detail-text">${rawText || 'Нет данных.'}</div>`;
+            const grid = document.createElement('div');
+            grid.className = 'result-grid modal-results';
 
-            const diarizationBlock = document.createElement('div');
-            diarizationBlock.className = 'detail-block';
-            diarizationBlock.innerHTML = `
-                <h4>Интервалы спикеров</h4>
-                <div class="detail-table-wrap" id="diarizationTableWrap">
-                    <table class="detail-table">
-                        <thead>
-                            <tr>
-                                <th>Speaker</th>
-                                <th>Start</th>
-                                <th>End</th>
-                            </tr>
-                        </thead>
-                        <tbody id="diarizationTableBody"></tbody>
-                    </table>
-                </div>
-                <div class="empty-state" id="diarizationEmpty">Нет данных.</div>
-            `;
+            grid.appendChild(buildTextBlock('Чистая транскрипция', 'modalRawText', rawText, 'Нет данных.', 'tall-text'));
 
-            const srtBlock = document.createElement('div');
-            srtBlock.className = 'detail-block';
-            srtBlock.innerHTML = `<h4>Speaker SRT</h4><div class="detail-text">${speakerSrt || 'Нет данных.'}</div>`;
-
-            const speakerTextRawBlock = document.createElement('div');
-            speakerTextRawBlock.className = 'detail-block full-span';
-            speakerTextRawBlock.innerHTML = `
-                <h4>Склеенная речь спикеров</h4>
-                <div class="detail-table-wrap tall" id="speakerTextRawWrap">
-                    <table class="detail-table speaker-text-table">
-                        <colgroup>
-                            <col style="width: 120px;">
-                            <col style="width: 120px;">
-                            <col style="width: 120px;">
-                            <col>
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th>Speaker</th>
-                                <th>Start</th>
-                                <th>End</th>
-                                <th>Text</th>
-                            </tr>
-                        </thead>
-                        <tbody id="speakerTextRawBody"></tbody>
-                    </table>
-                </div>
-                <div class="empty-state" id="speakerTextRawEmpty">Нет данных.</div>
-            `;
-
-            const wordsBlock = document.createElement('div');
-            wordsBlock.className = 'detail-block';
-            wordsBlock.innerHTML = `
-                <h4>Слова с таймингами</h4>
-                <div class="detail-table-wrap" id="wordsTableWrap">
-                    <table class="detail-table">
-                        <thead>
-                            <tr>
-                                <th>Word</th>
-                                <th>Start</th>
-                                <th>End</th>
-                            </tr>
-                        </thead>
-                        <tbody id="wordsTableBody"></tbody>
-                    </table>
-                </div>
-                <div class="empty-state" id="wordsEmpty">Нет данных.</div>
-            `;
-
-            wrapper.appendChild(rawBlock);
-            wrapper.appendChild(diarizationBlock);
-            wrapper.appendChild(srtBlock);
-            wrapper.appendChild(speakerTextRawBlock);
-            wrapper.appendChild(wordsBlock);
-
-            const diarizationBody = diarizationBlock.querySelector('#diarizationTableBody');
-            const diarizationWrap = diarizationBlock.querySelector('#diarizationTableWrap');
-            const diarizationEmpty = diarizationBlock.querySelector('#diarizationEmpty');
-
-            if (!diarizationSegments.length) {
-                diarizationWrap.style.display = 'none';
-                diarizationEmpty.style.display = 'block';
-            } else {
-                const rows = diarizationSegments.map((seg) => [
+            grid.appendChild(buildTableBlock({
+                title: 'Интервалы спикеров',
+                columns: ['Speaker', 'Start', 'End'],
+                rows: diarizationSegments.map((seg) => [
                     seg.speaker || 'UNKNOWN',
                     formatTimestamp(seg.start || 0),
                     formatTimestamp(seg.end || 0)
-                ]);
-                renderTableRows(diarizationBody, rows);
-                diarizationWrap.style.display = 'block';
-                diarizationEmpty.style.display = 'none';
-            }
+                ]),
+                emptyText: 'Нет интервалов для отображения.'
+            }));
 
-            const speakerTextRawBody = speakerTextRawBlock.querySelector('#speakerTextRawBody');
-            const speakerTextRawWrap = speakerTextRawBlock.querySelector('#speakerTextRawWrap');
-            const speakerTextRawEmpty = speakerTextRawBlock.querySelector('#speakerTextRawEmpty');
-
-            if (!speakerTextRawSegments.length) {
-                speakerTextRawWrap.style.display = 'none';
-                speakerTextRawEmpty.style.display = 'block';
-            } else {
-                const rows = speakerTextRawSegments.map((seg) => [
+            grid.appendChild(buildTableBlock({
+                title: 'Склеенная речь спикеров',
+                columns: ['Speaker', 'Start', 'End', 'Text'],
+                rows: speakerTextRawSegments.map((seg) => [
                     seg.speaker || 'UNKNOWN',
                     formatTimestamp(seg.start || 0),
                     formatTimestamp(seg.end || 0),
                     seg.text || ''
-                ]);
-                renderTableRows(speakerTextRawBody, rows);
-                speakerTextRawWrap.style.display = 'block';
-                speakerTextRawEmpty.style.display = 'none';
-            }
+                ]),
+                fullSpan: true,
+                tall: true,
+                tableClass: 'speaker-text-table',
+                colgroup: ['120px', '120px', '120px', ''],
+                emptyText: 'Нет сегментов для отображения.'
+            }));
 
-            const wordsBody = wordsBlock.querySelector('#wordsTableBody');
-            const wordsWrap = wordsBlock.querySelector('#wordsTableWrap');
-            const wordsEmpty = wordsBlock.querySelector('#wordsEmpty');
+            grid.appendChild(buildTextBlock('Speaker SRT', 'modalSpeakerSrt', speakerSrt, 'Нет данных.', 'tall-text'));
 
-            if (!words.length) {
-                wordsWrap.style.display = 'none';
-                wordsEmpty.style.display = 'block';
-            } else {
-                const rows = words.map((word) => [
+            grid.appendChild(buildTableBlock({
+                title: 'Слова с таймингами',
+                columns: ['Word', 'Start', 'End'],
+                rows: words.map((word) => [
                     word.word || '',
                     formatTimestamp(word.start || 0),
                     formatTimestamp(word.end || 0)
-                ]);
-                renderTableRows(wordsBody, rows);
-                wordsWrap.style.display = 'block';
-                wordsEmpty.style.display = 'none';
-            }
+                ]),
+                emptyText: 'Нет слов с таймингами.'
+            }));
 
+            wrapper.appendChild(grid);
             return wrapper;
+        }
+
+        function attachCopyHandlers(container) {
+            container.querySelectorAll('[data-copy-target]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const targetId = button.getAttribute('data-copy-target');
+                    const target = document.getElementById(targetId);
+                    if (!target) return;
+                    const text = target.textContent || '';
+                    navigator.clipboard.writeText(text).then(() => {
+                        button.textContent = 'Скопировано';
+                        setTimeout(() => {
+                            button.textContent = 'Копировать';
+                        }, 1200);
+                    }).catch(() => {
+                        button.textContent = 'Ошибка';
+                        setTimeout(() => {
+                            button.textContent = 'Копировать';
+                        }, 1200);
+                    });
+                });
+            });
         }
 
         async function openModal(taskId) {
             if (!taskId) return;
-            modalTitle.textContent = `Детали транскрипции`;
+            modalTitle.textContent = 'Детали транскрипции';
             modalStatus.textContent = `task_id: ${taskId}`;
             modalBody.innerHTML = '<div class="status">Загрузка...</div>';
             modalOverlay.classList.add('show');
@@ -771,6 +1027,7 @@
                 }
                 modalBody.innerHTML = '';
                 modalBody.appendChild(buildDetailContent(data));
+                attachCopyHandlers(modalBody);
             } catch (error) {
                 modalBody.innerHTML = `<div class="status">Ошибка: ${error.message}</div>`;
             }

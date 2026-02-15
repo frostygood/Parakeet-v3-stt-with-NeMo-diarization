@@ -39,6 +39,15 @@ app = FastAPI(
 
 QUEUE_MAX_SIZE = 100
 QUEUE_WORKERS = 1
+PAGE_SIZE = 50
+PUBLIC_PATHS = {"/", "/health", "/diarization", "/history", "/docs", "/openapi.json", "/redoc"}
+PUBLIC_PREFIXES = ("/static",)
+
+
+def _is_public_path(path: str) -> bool:
+    if path in PUBLIC_PATHS:
+        return True
+    return path.startswith(PUBLIC_PREFIXES)
 
 
 @app.middleware("http")
@@ -47,14 +56,7 @@ async def api_key_middleware(request: Request, call_next):
         return await call_next(request)
 
     path = request.url.path
-    if (
-        path == "/"
-        or path == "/health"
-        or path == "/diarization"
-        or path == "/history"
-        or path.startswith("/static")
-        or path in {"/docs", "/openapi.json", "/redoc"}
-    ):
+    if _is_public_path(path):
         return await call_next(request)
 
     expected_key = settings.api_key
@@ -95,36 +97,61 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-async def _serve_diarization_page() -> str:
+def _read_html(path: str, label: str) -> str:
     try:
-        with open("static/diarization.html", "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        logger.error("diarization.html not found")
+        logger.error("%s not found", label)
         raise HTTPException(status_code=404, detail="Interface not found")
+
+
+def _get_task_queue(request: Request) -> TaskQueue:
+    task_queue = getattr(request.app.state, "task_queue", None)
+    if not task_queue:
+        raise HTTPException(status_code=500, detail="Task queue not initialized")
+    return task_queue
+
+
+async def _save_upload(file: UploadFile) -> tuple[Path, str, int]:
+    content = await file.read()
+    file_size = len(content)
+    validate_file_size(file_size)
+    validate_file_type(file.filename)
+
+    safe_filename = sanitize_filename(file.filename)
+    file_path = Path(settings.upload_dir) / f"{uuid.uuid4()}_{safe_filename}"
+
+    logger.info("Saving uploaded file: %s (%s bytes)", safe_filename, file_size)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
+
+    return file_path, safe_filename, file_size
+
+
+def _get_completed_row(task_id: str) -> Optional[dict]:
+    row = fetch_transcription(task_id)
+    if not row or row.get("processing_time") is None:
+        return None
+    return row
 
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
     """Serve the primary HTML interface."""
-    return await _serve_diarization_page()
+    return _read_html("static/diarization.html", "diarization.html")
 
 
 @app.get("/diarization", response_class=HTMLResponse)
 async def diarization_page():
     """Serve the diarization HTML interface."""
-    return await _serve_diarization_page()
+    return _read_html("static/diarization.html", "diarization.html")
 
 
 @app.get("/history", response_class=HTMLResponse)
 async def history_page():
     """Serve the transcription history HTML interface."""
-    try:
-        with open("static/history.html", "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        logger.error("history.html not found")
-        raise HTTPException(status_code=404, detail="Interface not found")
+    return _read_html("static/history.html", "history.html")
 
 
 @app.get("/health")
@@ -167,37 +194,16 @@ async def transcribe(
         HTTPException: If file validation fails
     """
     try:
-        task_queue = getattr(request.app.state, "task_queue", None)
-        if not task_queue:
-            raise HTTPException(status_code=500, detail="Task queue not initialized")
+        task_queue = _get_task_queue(request)
         if task_queue.full():
             raise HTTPException(status_code=429, detail="Queue is full")
 
-        # Read file size
-        file_size = 0
-        content = await file.read()
-        file_size = len(content)
-        
-        # Validate file size
-        validate_file_size(file_size)
-        
-        # Validate file type
-        validate_file_type(file.filename)
-        
-        # Sanitize filename and create safe path
-        safe_filename = sanitize_filename(file.filename)
-        file_path = Path(settings.upload_dir) / f"{uuid.uuid4()}_{safe_filename}"
-        
-        logger.info(f"Saving uploaded file: {safe_filename} ({file_size} bytes)")
-        
-        # Save uploaded file
-        async with aiofiles.open(file_path, 'wb') as f:
-            await f.write(content)
+        file_path, safe_filename, _ = await _save_upload(file)
         
         # Create task
         task_id = str(uuid.uuid4())
         
-        logger.info(f"Starting transcription task {task_id} for file {safe_filename}")
+        logger.info("Starting transcription task %s for file %s", task_id, safe_filename)
         task_store.create(task_id)
         task_store.update(task_id, status="pending", progress=0, step="Queued")
 
@@ -252,17 +258,10 @@ async def get_status(task_id: str):
     try:
         task_state = task_store.get(task_id)
         if task_state:
-            if task_state.status == TranscriptionStatus.PENDING.value:
+            if task_state.status in {TranscriptionStatus.PENDING.value, TranscriptionStatus.PROCESSING.value}:
                 return {
                     'task_id': task_id,
-                    'status': 'pending',
-                    'progress': task_state.progress,
-                    'step': task_state.step
-                }
-            if task_state.status == TranscriptionStatus.PROCESSING.value:
-                return {
-                    'task_id': task_id,
-                    'status': 'processing',
+                    'status': task_state.status,
                     'progress': task_state.progress,
                     'step': task_state.step
                 }
@@ -273,8 +272,8 @@ async def get_status(task_id: str):
                     'error': task_state.error or 'Unknown error'
                 }
 
-        row = fetch_transcription(task_id)
-        if not row or row.get("processing_time") is None:
+        row = _get_completed_row(task_id)
+        if not row:
             if task_state:
                 raise HTTPException(status_code=404, detail="Result not found")
             raise HTTPException(status_code=404, detail="Task not found")
@@ -308,9 +307,9 @@ async def get_result(task_id: str):
         task_state = task_store.get(task_id)
         if task_state and task_state.status == TranscriptionStatus.FAILED.value:
             raise HTTPException(status_code=500, detail=task_state.error or "Task failed")
-        
-        row = fetch_transcription(task_id)
-        if not row or row.get("processing_time") is None:
+
+        row = _get_completed_row(task_id)
+        if not row:
             raise HTTPException(status_code=404, detail="Result not found")
 
         payload = build_response_payload(row)
@@ -339,13 +338,12 @@ async def list_transcriptions(
     if page < 1:
         raise HTTPException(status_code=400, detail="Invalid page")
 
-    page_size = 50
     total = count_transcriptions(task_id_query=task_id, user_id_query=user_id)
-    total_pages = (total + page_size - 1) // page_size
+    total_pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
 
     items = fetch_transcriptions(
         page=page,
-        page_size=page_size,
+        page_size=PAGE_SIZE,
         task_id_query=task_id,
         user_id_query=user_id,
     )
@@ -353,7 +351,7 @@ async def list_transcriptions(
     return {
         "items": items,
         "page": page,
-        "page_size": page_size,
+        "page_size": PAGE_SIZE,
         "total": total,
         "total_pages": total_pages,
     }
